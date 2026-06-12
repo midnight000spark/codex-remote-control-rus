@@ -98,6 +98,9 @@ internal fun MainActivity.startNewSession(
                     if (info.model.isNotBlank()) {
                         selectModel(info.model)
                     }
+                    selectedSandbox = sandboxPreferenceFromSession(info)
+                    persistSelectedSandbox(selectedSandbox)
+                    requestActiveGoal(info.sessionId)
                     appendSystemNote("新会话已创建: ${shortId(info.sessionId)}")
                     showNotice("新对话已创建")
                 }
@@ -126,14 +129,26 @@ internal fun MainActivity.sendComposerText() {
             steerCurrentTurn(sessionId, turnId, text)
             return
         }
+        if (selectedChatMode == ChatMode.Goal && activeThreadGoal == null) {
+            chatSettingsSheet = ChatSettingsSheet.Mode
+            showNotice("请先设置目标")
+            return
+        }
 
         val model = resolveModelForSend()
+        val effort = resolveReasoningEffortForSend(model)
         val payload = JSONObject().apply {
             put("session_id", sessionId)
             put("text", text)
             if (model.isNotBlank()) {
                 put("model", model)
             }
+            if (effort.isNotBlank()) {
+                put("effort", effort)
+            }
+            selectedReasoningSummary.takeIf { it.isNotBlank() }?.let { put("summary", it) }
+            put("sandboxPolicy", toSandboxModeValue(selectedSandbox))
+            buildCollaborationModePayload(model, effort)?.let { put("collaborationMode", it) }
             activeSession()?.approvalPolicy?.takeIf { it.isNotBlank() }?.let { put("approvalPolicy", it) }
         }
 
@@ -386,6 +401,14 @@ internal fun MainActivity.selectSession(sessionId: String, syncHistory: Boolean)
         sessions.firstOrNull { it.sessionId == sessionId }?.model
             ?.takeIf { it.isNotBlank() && isKnownModel(it) }
             ?.let { selectModel(it) }
+        sessions.firstOrNull { it.sessionId == sessionId }?.let { session ->
+            selectedSandbox = sandboxPreferenceFromSession(session)
+            persistSelectedSandbox(selectedSandbox)
+        }
+        activeThreadGoal = null
+        if (connected) {
+            requestActiveGoal(sessionId)
+        }
         if (syncHistory && connected) {
             requestSessionContent(sessionId)
             startSessionSyncLoop()
@@ -442,6 +465,9 @@ internal fun MainActivity.clearConversation() {
 internal fun MainActivity.selectModel(modelId: String) {
         selectedModel = modelId.trim()
         prefs.edit().putString(KEY_MODEL, selectedModel).apply()
+        if (selectedReasoningEffort.isNotBlank()) {
+            selectedReasoningEffort = normalizeReasoningEffortForModel(selectedModel, selectedReasoningEffort)
+        }
     }
 
 internal fun MainActivity.modelInfoFor(modelId: String): ModelInfo? {
@@ -512,6 +538,7 @@ internal fun MainActivity.normalizeReasoningEffortForModel(
 
 internal fun MainActivity.reasoningEffortMenuLabel(effort: String): String {
         return when (effort.trim()) {
+            "" -> "默认"
             "none" -> "关闭思考 (none)"
             "minimal" -> "极低 (minimal)"
             "low" -> "低 (low)"
@@ -545,9 +572,9 @@ internal fun MainActivity.approvalPolicyMenuOptions(): List<SelectionMenuOption>
 
 internal fun MainActivity.sandboxMenuOptions(): List<SelectionMenuOption> {
         return listOf(
-            SelectionMenuOption("readOnly", "只读 (readOnly)"),
-            SelectionMenuOption("workspaceWrite", "工作区可写 (workspaceWrite)"),
-            SelectionMenuOption("dangerFullAccess", "完整访问 (dangerFullAccess)"),
+            SelectionMenuOption("readOnly", "只读", "只能查看文件。"),
+            SelectionMenuOption("workspaceWrite", "工作区", "可修改当前项目文件。"),
+            SelectionMenuOption("dangerFullAccess", "完整访问", "不限制文件访问。"),
         )
     }
 

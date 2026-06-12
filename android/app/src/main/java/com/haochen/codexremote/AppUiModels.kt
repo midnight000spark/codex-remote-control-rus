@@ -13,6 +13,45 @@ internal enum class ConversationScrollTarget {
     Bottom,
 }
 
+internal enum class ChatMode {
+    Default,
+    Plan,
+    Goal,
+}
+
+internal enum class ChatSettingsSheet {
+    Mode,
+    Model,
+    Sandbox,
+}
+
+internal data class ThreadGoalState(
+    val threadId: String,
+    val objective: String,
+    val status: String,
+    val tokenBudget: Int?,
+    val tokensUsed: Int,
+    val timeUsedSeconds: Int,
+) {
+    companion object {
+        fun fromJson(objectValue: JSONObject?): ThreadGoalState? {
+            objectValue ?: return null
+            val threadId = objectValue.optString("threadId", objectValue.optString("thread_id", "")).trim()
+            val objective = objectValue.optString("objective", "").trim()
+            if (threadId.isBlank() && objective.isBlank()) return null
+            val budget = objectValue.optInt("tokenBudget", -1).takeIf { it > 0 }
+            return ThreadGoalState(
+                threadId = threadId,
+                objective = objective,
+                status = objectValue.optString("status", "active").trim().ifBlank { "active" },
+                tokenBudget = budget,
+                tokensUsed = objectValue.optInt("tokensUsed", 0).coerceAtLeast(0),
+                timeUsedSeconds = objectValue.optInt("timeUsedSeconds", 0).coerceAtLeast(0),
+            )
+        }
+    }
+}
+
 internal data class ConversationScrollCommand(
     val target: ConversationScrollTarget,
     val nonce: Long,

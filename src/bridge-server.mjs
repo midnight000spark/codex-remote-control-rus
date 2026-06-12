@@ -244,6 +244,14 @@ export class BridgeServer extends EventEmitter {
         ws.send(JSON.stringify(createResponse(id, { data, nextCursor })));
         return;
       }
+      case 'collaboration_mode.list': {
+        const listed = typeof this.backend.listCollaborationModes === 'function'
+          ? await this.backend.listCollaborationModes(payload)
+          : { data: [] };
+        const data = Array.isArray(listed) ? listed : listed?.data ?? [];
+        ws.send(JSON.stringify(createResponse(id, { data })));
+        return;
+      }
       case 'session.start': {
         const started = await this.backend.startThread({
           cwd: payload.cwd ?? null,
@@ -475,6 +483,74 @@ export class BridgeServer extends EventEmitter {
           payload.turn_id ?? payload.turnId,
         );
         ws.send(JSON.stringify(createResponse(id, { ok: true })));
+        return;
+      }
+      case 'goal.get': {
+        const sessionId = payload.session_id ?? payload.thread_id;
+        const session = this.store.getSession(sessionId);
+        const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
+        if (!threadId) {
+          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          return;
+        }
+        const result = typeof this.backend.getThreadGoal === 'function'
+          ? await this.backend.getThreadGoal(threadId)
+          : { goal: null };
+        ws.send(JSON.stringify(createResponse(id, {
+          session_id: sessionId,
+          thread_id: threadId,
+          goal: result?.goal ?? null,
+        })));
+        return;
+      }
+      case 'goal.set': {
+        const sessionId = payload.session_id ?? payload.thread_id;
+        const session = this.store.getSession(sessionId);
+        const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
+        const objective = typeof payload.objective === 'string' ? payload.objective.trim() : '';
+        if (!threadId) {
+          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          return;
+        }
+        if (!objective) {
+          ws.send(JSON.stringify(createError(id, 'invalid_request', 'objective is required')));
+          return;
+        }
+        if (typeof this.backend.setThreadGoal !== 'function') {
+          ws.send(JSON.stringify(createError(id, 'unsupported', 'thread goal is not supported by this backend')));
+          return;
+        }
+        const tokenBudget = Number.isFinite(Number(payload.tokenBudget)) && Number(payload.tokenBudget) > 0
+          ? Number(payload.tokenBudget)
+          : null;
+        const result = await this.backend.setThreadGoal(threadId, {
+          objective,
+          status: payload.status ?? 'active',
+          tokenBudget,
+        });
+        ws.send(JSON.stringify(createResponse(id, {
+          session_id: sessionId,
+          thread_id: threadId,
+          goal: result?.goal ?? null,
+        })));
+        return;
+      }
+      case 'goal.clear': {
+        const sessionId = payload.session_id ?? payload.thread_id;
+        const session = this.store.getSession(sessionId);
+        const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
+        if (!threadId) {
+          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          return;
+        }
+        const result = typeof this.backend.clearThreadGoal === 'function'
+          ? await this.backend.clearThreadGoal(threadId)
+          : { cleared: false };
+        ws.send(JSON.stringify(createResponse(id, {
+          session_id: sessionId,
+          thread_id: threadId,
+          cleared: Boolean(result?.cleared),
+        })));
         return;
       }
       case 'approval.response': {
@@ -722,6 +798,8 @@ export class BridgeServer extends EventEmitter {
       return itemType === 'agentMessage' || itemType === 'fileChange';
     }
     return eventName === 'thread/started'
+      || eventName === 'thread/goal/updated'
+      || eventName === 'thread/goal/cleared'
       || eventName === 'turn/started'
       || eventName === 'turn/completed'
       || eventName === 'item/commandExecution/requestApproval'

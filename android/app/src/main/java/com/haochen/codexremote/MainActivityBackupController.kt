@@ -17,6 +17,10 @@ private val STRING_BACKUP_KEYS = listOf(
     KEY_TOKEN,
     KEY_CONNECTION_HISTORY,
     KEY_MODEL,
+    KEY_CHAT_MODE,
+    KEY_CHAT_REASONING_EFFORT,
+    KEY_CHAT_REASONING_SUMMARY,
+    KEY_CHAT_SANDBOX,
     KEY_STARTUP_PAGE,
 )
 
@@ -96,6 +100,10 @@ private fun MainActivity.buildSettingsBackupDocument(): JSONObject {
     }
     val settings = JSONObject().apply {
         putStringIfPresent("model", prefs.getString(KEY_MODEL, null))
+        putStringIfPresent("chatMode", prefs.getString(KEY_CHAT_MODE, null))
+        putStringIfPresent("chatReasoningEffort", prefs.getString(KEY_CHAT_REASONING_EFFORT, null))
+        putStringIfPresent("chatReasoningSummary", prefs.getString(KEY_CHAT_REASONING_SUMMARY, null))
+        putStringIfPresent("chatSandbox", prefs.getString(KEY_CHAT_SANDBOX, null))
         put("autoReconnect", prefs.getBoolean(KEY_AUTO_RECONNECT, false))
         put("autoReconnectMaxAttempts", prefs.getInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, 0).coerceAtLeast(0))
         putStringIfPresent("startupPage", prefs.getString(KEY_STARTUP_PAGE, null))
@@ -171,6 +179,10 @@ private fun MainActivity.applySettingsBackupDocument(root: JSONObject) {
     }
     editor.putString(KEY_CONNECTION_HISTORY, normalizeBackupConnections(connections, currentConnection).toString())
     editor.putStringIfPresent(KEY_MODEL, settings.optStringOrNull("model"))
+    editor.putStringIfPresent(KEY_CHAT_MODE, settings.optStringOrNull("chatMode"))
+    editor.putStringIfPresent(KEY_CHAT_REASONING_EFFORT, settings.optStringOrNull("chatReasoningEffort"))
+    editor.putStringIfPresent(KEY_CHAT_REASONING_SUMMARY, settings.optStringOrNull("chatReasoningSummary"))
+    editor.putStringIfPresent(KEY_CHAT_SANDBOX, settings.optStringOrNull("chatSandbox"))
     editor.putBoolean(KEY_AUTO_RECONNECT, settings.optBoolean("autoReconnect", false))
     editor.putInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, settings.optInt("autoReconnectMaxAttempts", 0).coerceAtLeast(0))
     editor.putStringIfPresent(KEY_STARTUP_PAGE, settings.optStringOrNull("startupPage"))
@@ -262,6 +274,10 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     }.apply()
     persistConnectionHistory()
     selectedModel = prefs.getString(KEY_MODEL, "")?.trim().orEmpty()
+    selectedChatMode = chatModeFromPreference(prefs.getString(KEY_CHAT_MODE, null))
+    selectedReasoningEffort = prefs.getString(KEY_CHAT_REASONING_EFFORT, "")?.trim().orEmpty()
+    selectedReasoningSummary = normalizeReasoningSummary(prefs.getString(KEY_CHAT_REASONING_SUMMARY, "auto"))
+    selectedSandbox = normalizeSandboxPreference(prefs.getString(KEY_CHAT_SANDBOX, "workspaceWrite"))
     autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
     autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
     startupPagePreference = loadStartupPagePreference()

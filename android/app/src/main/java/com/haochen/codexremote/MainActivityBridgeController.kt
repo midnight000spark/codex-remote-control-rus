@@ -73,6 +73,7 @@ internal fun MainActivity.disconnectBridge(
         connected = false
         activeTurnId = null
         interruptingTurnId = null
+        activeThreadGoal = null
         sessionContentDirty = false
         assistantDeltaBuffers.clear()
         pendingApprovals.clear()
@@ -160,6 +161,7 @@ internal fun MainActivity.connectToBridge(
                         mainHandler.removeCallbacks(bridgeHelloTimeoutRunnable)
                         activeTurnId = null
                         interruptingTurnId = null
+                        activeThreadGoal = null
                         sessionContentDirty = false
                         assistantDeltaBuffers.clear()
                         pendingApprovals.clear()

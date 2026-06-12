@@ -115,6 +115,15 @@ internal fun MainActivity.handleEvent(message: JSONObject) {
         }
 
         when (eventName) {
+            "thread/goal/updated" -> {
+                activeThreadGoal = ThreadGoalState.fromJson(payload.optJSONObject("goal"))
+            }
+            "thread/goal/cleared" -> {
+                activeThreadGoal = null
+                if (selectedChatMode == ChatMode.Goal) {
+                    selectChatMode(ChatMode.Default)
+                }
+            }
             "turn/input" -> {
                 handleTurnInput(message, payload)
             }

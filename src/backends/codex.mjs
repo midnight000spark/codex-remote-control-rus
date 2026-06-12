@@ -125,6 +125,10 @@ export class CodexBackend extends EventEmitter {
     });
   }
 
+  async listCollaborationModes(params = {}) {
+    return this.#request('collaborationMode/list', params);
+  }
+
   async startThread(params = {}) {
     return this.#request('thread/start', {
       ...params,
@@ -192,6 +196,23 @@ export class CodexBackend extends EventEmitter {
 
   async interruptTurn(threadId, turnId) {
     return this.#request('turn/interrupt', { threadId, turnId });
+  }
+
+  async getThreadGoal(threadId) {
+    return this.#request('thread/goal/get', { threadId });
+  }
+
+  async setThreadGoal(threadId, params = {}) {
+    return this.#request('thread/goal/set', {
+      threadId,
+      objective: params.objective ?? null,
+      status: params.status ?? null,
+      tokenBudget: params.tokenBudget ?? null,
+    });
+  }
+
+  async clearThreadGoal(threadId) {
+    return this.#request('thread/goal/clear', { threadId });
   }
 
   async respondRequest(requestId, result, error = null) {

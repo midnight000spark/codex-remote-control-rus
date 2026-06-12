@@ -270,6 +270,8 @@ internal fun MainActivity.ChatPage() {
                 }
             }
         }
+
+        ChatSettingsBar()
     }
 }
 

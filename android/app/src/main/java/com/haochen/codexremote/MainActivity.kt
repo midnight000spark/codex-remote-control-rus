@@ -30,6 +30,10 @@ internal const val KEY_TOKEN = "token"
 internal const val KEY_CONNECTION_HISTORY = "connection_history"
 internal const val KEY_SESSION = "session"
 internal const val KEY_MODEL = "model"
+internal const val KEY_CHAT_MODE = "chat_mode"
+internal const val KEY_CHAT_REASONING_EFFORT = "chat_reasoning_effort"
+internal const val KEY_CHAT_REASONING_SUMMARY = "chat_reasoning_summary"
+internal const val KEY_CHAT_SANDBOX = "chat_sandbox"
 internal const val KEY_AUTO_RECONNECT = "auto_reconnect"
 internal const val KEY_AUTO_RECONNECT_MAX_ATTEMPTS = "auto_reconnect_max_attempts"
 internal const val KEY_STARTUP_PAGE = "startup_page"
@@ -100,6 +104,12 @@ class MainActivity : ComponentActivity() {
     internal var activeTurnId by mutableStateOf<String?>(null)
     internal var bridgeUrl by mutableStateOf("")
     internal var selectedModel by mutableStateOf("")
+    internal var selectedChatMode by mutableStateOf(ChatMode.Default)
+    internal var selectedReasoningEffort by mutableStateOf("")
+    internal var selectedReasoningSummary by mutableStateOf("auto")
+    internal var selectedSandbox by mutableStateOf("workspaceWrite")
+    internal var chatSettingsSheet by mutableStateOf<ChatSettingsSheet?>(null)
+    internal var activeThreadGoal by mutableStateOf<ThreadGoalState?>(null)
     internal var connectionDetail by mutableStateOf("未连接")
     internal var currentBridgeUrl by mutableStateOf<String?>(null)
     internal var currentConnectionId by mutableStateOf<String?>(null)
@@ -178,6 +188,10 @@ class MainActivity : ComponentActivity() {
         currentConnectionId = loadCurrentConnectionId()
         activeSessionId = prefs.getString(KEY_SESSION, null)
         selectedModel = prefs.getString(KEY_MODEL, "")?.trim().orEmpty()
+        selectedChatMode = chatModeFromPreference(prefs.getString(KEY_CHAT_MODE, null))
+        selectedReasoningEffort = prefs.getString(KEY_CHAT_REASONING_EFFORT, "")?.trim().orEmpty()
+        selectedReasoningSummary = normalizeReasoningSummary(prefs.getString(KEY_CHAT_REASONING_SUMMARY, "auto"))
+        selectedSandbox = normalizeSandboxPreference(prefs.getString(KEY_CHAT_SANDBOX, "workspaceWrite"))
         autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
         autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
         startupPagePreference = loadStartupPagePreference()

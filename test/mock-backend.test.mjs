@@ -164,6 +164,61 @@ test('mock backend produces events and approval flow', async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test('bridge exposes collaboration modes and thread goal lifecycle', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-goal-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: 'test-token' });
+  await bridge.start();
+  const { port } = bridge.address();
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=test-token`);
+  await once(ws, 'open');
+
+  const messages = [];
+  ws.on('message', (buffer) => {
+    messages.push(JSON.parse(buffer.toString('utf8')));
+  });
+
+  ws.send(JSON.stringify({ id: 'modes', type: 'collaboration_mode.list', payload: {} }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === 'modes'));
+  const modes = messages.find((m) => m.type === 'response' && m.id === 'modes');
+  assert.equal(modes.ok, true);
+  assert.ok(modes.payload.data.some((mode) => mode.mode === 'plan'));
+
+  ws.send(JSON.stringify({ id: 'start', type: 'session.start', payload: { title: 'Goal session', model: 'mock-gpt-5' } }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === 'start'));
+  const sessionId = messages.find((m) => m.type === 'response' && m.id === 'start').payload.session.session_id;
+
+  ws.send(JSON.stringify({
+    id: 'goal-set',
+    type: 'goal.set',
+    payload: { session_id: sessionId, objective: 'finish remote control goal support', tokenBudget: 1234 },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === 'goal-set'));
+  const goalSet = messages.find((m) => m.type === 'response' && m.id === 'goal-set');
+  assert.equal(goalSet.ok, true);
+  assert.equal(goalSet.payload.goal.objective, 'finish remote control goal support');
+  assert.equal(goalSet.payload.goal.tokenBudget, 1234);
+  assert.ok(messages.find((m) => m.type === 'event' && m.event === 'thread/goal/updated'));
+
+  ws.send(JSON.stringify({ id: 'goal-get', type: 'goal.get', payload: { session_id: sessionId } }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === 'goal-get'));
+  const goalGet = messages.find((m) => m.type === 'response' && m.id === 'goal-get');
+  assert.equal(goalGet.payload.goal.objective, 'finish remote control goal support');
+
+  ws.send(JSON.stringify({ id: 'goal-clear', type: 'goal.clear', payload: { session_id: sessionId } }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === 'goal-clear'));
+  const goalClear = messages.find((m) => m.type === 'response' && m.id === 'goal-clear');
+  assert.equal(goalClear.payload.cleared, true);
+  assert.ok(messages.find((m) => m.type === 'event' && m.event === 'thread/goal/cleared'));
+
+  ws.close();
+  await once(ws, 'close');
+  await bridge.stop();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 test('bridge does not resume brand-new session before first turn', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-fresh-turn-test-'));
 

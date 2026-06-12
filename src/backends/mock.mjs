@@ -50,6 +50,7 @@ export class MockBackend extends EventEmitter {
     this.pendingApprovals = new Map();
     this.turnControllers = new Map();
     this.turnSteers = new Map();
+    this.goals = new Map();
     this.requestSeq = 0;
     this.turnSeq = 0;
     this.threadSeq = 0;
@@ -68,6 +69,7 @@ export class MockBackend extends EventEmitter {
     this.turnControllers.clear();
     this.turnSteers.clear();
     this.pendingApprovals.clear();
+    this.goals.clear();
   }
 
   async listThreads() {
@@ -95,6 +97,15 @@ export class MockBackend extends EventEmitter {
         },
       ],
       nextCursor: null,
+    };
+  }
+
+  async listCollaborationModes() {
+    return {
+      data: [
+        { name: '普通', mode: 'default', model: null, reasoning_effort: null },
+        { name: 'Plan', mode: 'plan', model: null, reasoning_effort: null },
+      ],
     };
   }
 
@@ -218,6 +229,42 @@ export class MockBackend extends EventEmitter {
         },
       },
     });
+  }
+
+  async getThreadGoal(threadId) {
+    return { goal: structuredClone(this.goals.get(threadId) ?? null) };
+  }
+
+  async setThreadGoal(threadId, params = {}) {
+    const now = nowMs();
+    const existing = this.goals.get(threadId);
+    const goal = {
+      threadId,
+      objective: params.objective ?? existing?.objective ?? '',
+      status: params.status ?? existing?.status ?? 'active',
+      tokenBudget: params.tokenBudget ?? existing?.tokenBudget ?? null,
+      tokensUsed: existing?.tokensUsed ?? 0,
+      timeUsedSeconds: existing?.timeUsedSeconds ?? 0,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.goals.set(threadId, goal);
+    this.emit('message', {
+      type: 'notification',
+      method: 'thread/goal/updated',
+      params: { threadId, turnId: null, goal: structuredClone(goal) },
+    });
+    return { goal: structuredClone(goal) };
+  }
+
+  async clearThreadGoal(threadId) {
+    const cleared = this.goals.delete(threadId);
+    this.emit('message', {
+      type: 'notification',
+      method: 'thread/goal/cleared',
+      params: { threadId },
+    });
+    return { cleared };
   }
 
   async respondRequest(requestId, result, error = null) {

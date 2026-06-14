@@ -268,11 +268,31 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
                 )
             },
         )
-    }
-    val currentModel = resolveModelForSend()
+    }.sortedBy { it.displayName.lowercase() }
+    val currentModel = currentSessionModelLabelSource().ifBlank { resolveModelForSend() }
+    val currentEffort = currentSessionReasoningEffortLabelSource()
 
     SheetColumn {
         SheetTitle("模型与推理")
+        Text("思考强度", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        SegmentedButtonRows(
+            options = chatReasoningEffortOptions(currentModel),
+            columns = 5,
+            selected = { option -> currentEffort == option.value },
+            label = { option -> reasoningEffortShortLabel(option.value) },
+            onClick = { option -> selectReasoningEffort(option.value) },
+        )
+
+        Text("推理摘要", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        SegmentedButtonRows(
+            options = reasoningSummaryOptions(),
+            columns = 4,
+            selected = { option -> normalizeReasoningSummary(selectedReasoningSummary) == option.value },
+            label = { option -> option.label },
+            onClick = { option -> selectReasoningSummary(option.value) },
+        )
+
+        HorizontalDivider(color = uiBorder.copy(alpha = 0.8f))
         Text("模型", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         if (modelOptions.isEmpty()) {
             Text("暂无可用模型", color = uiMuted, fontSize = 12.sp)
@@ -284,37 +304,6 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
                         ?: if (model.isDefault) "默认" else model.model,
                     selected = model.model == currentModel || model.id == currentModel,
                     onClick = { selectModel(model.model) },
-                )
-            }
-        }
-
-        HorizontalDivider(color = uiBorder.copy(alpha = 0.8f))
-        Text("思考强度", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            chatReasoningEffortOptions(currentModel).forEach { option ->
-                ChoiceChip(
-                    label = reasoningEffortShortLabel(option.value),
-                    selected = selectedReasoningEffort == option.value,
-                    onClick = { selectReasoningEffort(option.value) },
-                )
-            }
-        }
-
-        Text("推理摘要", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            reasoningSummaryOptions().forEach { option ->
-                ChoiceChip(
-                    label = option.label,
-                    selected = normalizeReasoningSummary(selectedReasoningSummary) == option.value,
-                    onClick = { selectReasoningSummary(option.value) },
                 )
             }
         }
@@ -415,9 +404,10 @@ private fun MainActivity.ChoiceChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = if (selected) uiPrimary else uiSurfaceAlt,
         border = BorderStroke(1.dp, if (selected) uiPrimary else uiBorder),
@@ -427,8 +417,44 @@ private fun MainActivity.ChoiceChip(
             color = if (selected) Color.White else uiText,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun MainActivity.SegmentedButtonRows(
+    options: List<SelectionMenuOption>,
+    columns: Int,
+    selected: (SelectionMenuOption) -> Boolean,
+    label: (SelectionMenuOption) -> String,
+    onClick: (SelectionMenuOption) -> Unit,
+) {
+    val rows = options.chunked(columns.coerceAtLeast(1))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { rowOptions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                rowOptions.forEach { option ->
+                    ChoiceChip(
+                        label = label(option),
+                        selected = selected(option),
+                        onClick = { onClick(option) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(columns - rowOptions.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
 }
 

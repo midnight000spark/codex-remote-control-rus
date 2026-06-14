@@ -95,11 +95,7 @@ internal fun MainActivity.startNewSession(
                     selectSession(info.sessionId, syncHistory = false)
                     currentPage = AppPage.Chat
                     selectedWorkspace = info.cwd.takeIf { it.isNotBlank() } ?: projectPath
-                    if (info.model.isNotBlank()) {
-                        selectModel(info.model)
-                    }
-                    selectedSandbox = sandboxPreferenceFromSession(info)
-                    persistSelectedSandbox(selectedSandbox)
+                    syncChatSettingsFromSession(info)
                     requestActiveGoal(info.sessionId)
                     appendSystemNote("新会话已创建: ${shortId(info.sessionId)}")
                     showNotice("新对话已创建")
@@ -398,13 +394,7 @@ internal fun MainActivity.selectSession(sessionId: String, syncHistory: Boolean)
         projectBuckets().firstOrNull { group -> group.sessions.any { it.sessionId == sessionId } }?.let { group ->
             setProjectGroupExpanded(group.key(), true)
         }
-        sessions.firstOrNull { it.sessionId == sessionId }?.model
-            ?.takeIf { it.isNotBlank() && isKnownModel(it) }
-            ?.let { selectModel(it) }
-        sessions.firstOrNull { it.sessionId == sessionId }?.let { session ->
-            selectedSandbox = sandboxPreferenceFromSession(session)
-            persistSelectedSandbox(selectedSandbox)
-        }
+        sessions.firstOrNull { it.sessionId == sessionId }?.let(::syncChatSettingsFromSession)
         activeThreadGoal = null
         if (connected) {
             requestActiveGoal(sessionId)

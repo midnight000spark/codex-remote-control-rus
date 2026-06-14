@@ -128,6 +128,21 @@ internal fun MainActivity.resolveReasoningEffortForSend(modelId: String): String
     return normalizeReasoningEffortForModel(modelId, normalized)
 }
 
+internal fun MainActivity.syncChatSettingsFromSession(session: SessionInfo?) {
+    session ?: return
+    session.model.trim().takeIf { it.isNotBlank() }?.let { selectModel(it) }
+    val normalizedEffort = session.reasoningEffort.trim()
+    selectReasoningEffort(
+        if (normalizedEffort.isBlank()) {
+            ""
+        } else {
+            normalizeReasoningEffortForModel(session.model.trim(), normalizedEffort)
+        },
+    )
+    selectedSandbox = sandboxPreferenceFromSession(session)
+    persistSelectedSandbox(selectedSandbox)
+}
+
 internal fun MainActivity.buildCollaborationModePayload(modelId: String, effort: String): JSONObject? {
     val modeValue = when (selectedChatMode) {
         ChatMode.Plan -> "plan"
@@ -148,10 +163,18 @@ internal fun MainActivity.buildCollaborationModePayload(modelId: String, effort:
 }
 
 internal fun MainActivity.modelToolbarLabel(): String {
-    val model = resolveModelForSend()
+    val model = currentSessionModelLabelSource().ifBlank { resolveModelForSend() }
     val modelLabel = modelInfoFor(model)?.displayName ?: model.ifBlank { "模型" }
-    val effort = reasoningEffortShortLabel(selectedReasoningEffort)
+    val effort = reasoningEffortShortLabel(currentSessionReasoningEffortLabelSource())
     return "$modelLabel · $effort"
+}
+
+internal fun MainActivity.currentSessionModelLabelSource(): String {
+    return activeSession()?.model?.trim().orEmpty()
+}
+
+internal fun MainActivity.currentSessionReasoningEffortLabelSource(): String {
+    return activeSession()?.reasoningEffort?.trim().orEmpty()
 }
 
 internal fun MainActivity.tokenUsageToolbarLabel(): String? {

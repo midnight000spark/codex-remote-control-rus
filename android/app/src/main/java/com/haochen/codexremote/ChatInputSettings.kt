@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -269,8 +270,8 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
             },
         )
     }.sortedBy { it.displayName.lowercase() }
-    val currentModel = currentSessionModelLabelSource().ifBlank { resolveModelForSend() }
-    val currentEffort = currentSessionReasoningEffortLabelSource()
+    val currentModel = resolveModelForSend()
+    val currentEffort = selectedReasoningEffort
 
     SheetColumn {
         SheetTitle("模型与推理")
@@ -407,19 +408,22 @@ private fun MainActivity.ChoiceChip(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = if (selected) uiPrimary else uiSurfaceAlt,
+        modifier = modifier
+            .heightIn(min = 30.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) uiPrimary else Color.Transparent,
         border = BorderStroke(1.dp, if (selected) uiPrimary else uiBorder),
     ) {
         Text(
             text = label,
             color = if (selected) Color.White else uiText,
             fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

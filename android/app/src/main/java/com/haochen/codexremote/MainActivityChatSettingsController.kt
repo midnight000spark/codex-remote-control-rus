@@ -163,9 +163,9 @@ internal fun MainActivity.buildCollaborationModePayload(modelId: String, effort:
 }
 
 internal fun MainActivity.modelToolbarLabel(): String {
-    val model = currentSessionModelLabelSource().ifBlank { resolveModelForSend() }
+    val model = resolveModelForSend()
     val modelLabel = modelInfoFor(model)?.displayName ?: model.ifBlank { "模型" }
-    val effort = reasoningEffortShortLabel(currentSessionReasoningEffortLabelSource())
+    val effort = reasoningEffortShortLabel(selectedReasoningEffort)
     return "$modelLabel · $effort"
 }
 

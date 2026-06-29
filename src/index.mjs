@@ -6,6 +6,7 @@ import { StateStore } from './store.mjs';
 import { MockBackend } from './backends/mock.mjs';
 import { CodexBackend } from './backends/codex.mjs';
 import { BridgeServer } from './bridge-server.mjs';
+import { resolveCodexBin } from './codex-bin-resolver.mjs';
 
 function defaultDataDir() {
   return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'codex_remote_control');
@@ -26,7 +27,7 @@ function parseArgs(argv) {
     clearStateOnStart: false,
     syncLog: null,
     protocolLog: null,
-    codexBin: 'codex',
+    codexBin: null,
     codexArgs: [],
     codexConfigs: [],
   };
@@ -153,9 +154,12 @@ Options:
   if (args.clearStateOnStart) {
     await store.clear();
   }
+  const codexBin = args.backend === 'codex'
+    ? await resolveCodexBin({ explicitBin: args.codexBin })
+    : null;
   const backend = args.backend === 'codex'
     ? new CodexBackend({
-        codexBin: args.codexBin,
+        codexBin,
         codexArgs: args.codexArgs,
         codexConfigs: args.codexConfigs,
         protocolLogPath: args.protocolLog,

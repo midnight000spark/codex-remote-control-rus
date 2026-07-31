@@ -1,4 +1,4 @@
-import { clone } from './common.mjs';
+import { clone, userMessageContentSignature } from './common.mjs';
 
 export function mergeInitialSessionEvents(hydratedEvents, storedEvents) {
   if (hydratedEvents.length === 0) {
@@ -72,6 +72,14 @@ export function pruneHydratedEvents(hydratedEvents, storedEvents) {
 
 export function eventSignature(event) {
   const payload = event?.payload ?? {};
+  if (event?.event === 'turn/input') {
+    return [
+      event?.event ?? '',
+      event?.turn_id ?? '',
+      payload?.itemId ?? payload?.item_id ?? '',
+      userMessageContentSignature(payload?.input, payload?.text),
+    ].join('|');
+  }
   if (event?.event === 'item/completed' || event?.event === 'item/started') {
     const item = canonicalizeItemForSignature(payload?.item ?? {});
     return [

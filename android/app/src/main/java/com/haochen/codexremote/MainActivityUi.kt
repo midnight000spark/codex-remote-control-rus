@@ -1,5 +1,7 @@
 package com.haochen.codexremote
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -99,6 +101,15 @@ import kotlinx.coroutines.withContext
 internal fun MainActivity.RemoteApp() {
     val drawerState = androidx.compose.material3.rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val imageSaveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/*"),
+    ) { destination ->
+        if (destination == null) {
+            pendingConversationImageSave = null
+        } else {
+            scope.launch { completePendingConversationImageSave(destination) }
+        }
+    }
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch {
@@ -240,6 +251,43 @@ internal fun MainActivity.RemoteApp() {
                     }
                 }
             }
+        }
+
+        conversationImageViewerState?.let { state ->
+            ConversationImageViewerDialog(
+                state = state,
+                onDismiss = { conversationImageViewerState = null },
+                onLongPress = { source, anchorX, anchorY ->
+                    openConversationImageActions(source, anchorX, anchorY)
+                },
+            )
+        }
+
+        conversationLongPressState?.let { state ->
+            ConversationLongPressDialog(
+                state = state,
+                onDismiss = { conversationLongPressState = null },
+                onCopyImage = {
+                    conversationLongPressState = null
+                    scope.launch { copyConversationImage(state.source) }
+                },
+                onSaveImage = {
+                    conversationLongPressState = null
+                    scope.launch {
+                        requestConversationImageSave(state.source) { displayName ->
+                            imageSaveLauncher.launch(displayName)
+                        }
+                    }
+                },
+                onOpenLink = {
+                    conversationLongPressState = null
+                    openConversationLink(state.source, state.scrollY)
+                },
+                onCopyLink = {
+                    conversationLongPressState = null
+                    copyConversationLink(state.source)
+                },
+            )
         }
 
         newChatDraft?.let { draft ->

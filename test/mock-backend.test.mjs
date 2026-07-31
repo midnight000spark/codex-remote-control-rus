@@ -3118,6 +3118,131 @@ test('bridge file.read resolves relative paths from session cwd', async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test('bridge serves authenticated session images', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-image-read-test-'));
+  const workspaceDir = path.join(dir, 'workspace');
+  const imageBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  await fs.mkdir(workspaceDir, { recursive: true });
+  await fs.writeFile(path.join(workspaceDir, 'pixel.png'), imageBytes);
+
+  const store = new StateStore(path.join(dir, 'state.json'));
+  await store.load();
+  await store.upsertSession({
+    session_id: 'image_read_session',
+    thread_id: 'image_read_session',
+    title: '图片读取',
+    cwd: workspaceDir,
+    model: 'mock-gpt-5',
+    backend: 'mock',
+    preview: '',
+    active: true,
+  });
+
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: 'test-token' });
+  await bridge.start();
+  const { port } = bridge.address();
+
+  const unauthorized = await fetch(
+    `http://127.0.0.1:${port}/v1/image?session_id=image_read_session&path=pixel.png&token=wrong-token`,
+  );
+  assert.equal(unauthorized.status, 401);
+
+  const response = await fetch(
+    `http://127.0.0.1:${port}/v1/image?session_id=image_read_session&path=pixel.png&token=test-token`,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), imageBytes);
+
+  await bridge.stop();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test('session content preserves user images and image thread items', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-image-content-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  await store.load();
+  await store.upsertSession({
+    session_id: 'image_content_session',
+    thread_id: 'image_content_session',
+    title: '图片会话',
+    cwd: dir,
+    model: 'mock-gpt-5',
+    backend: 'mock',
+    preview: '',
+    active: true,
+  });
+  const userContent = [
+    { type: 'text', text: '查看图片' },
+    { type: 'image', url: 'https://example.com/remote.png' },
+    { type: 'localImage', path: 'local.png' },
+  ];
+  await store.appendEvent('image_content_session', {
+    type: 'event',
+    event: 'turn/input',
+    session_id: 'image_content_session',
+    thread_id: 'image_content_session',
+    turn_id: 'image_turn_1',
+    payload: {
+      itemId: 'image_user_1',
+      item_id: 'image_user_1',
+      text: '查看图片',
+      input: userContent,
+    },
+  });
+  await store.appendEvent('image_content_session', {
+    type: 'event',
+    event: 'item/completed',
+    session_id: 'image_content_session',
+    thread_id: 'image_content_session',
+    turn_id: 'image_turn_1',
+    payload: {
+      item: { type: 'imageView', id: 'image_view_1', path: 'local.png' },
+    },
+  });
+  await store.appendEvent('image_content_session', {
+    type: 'event',
+    event: 'item/completed',
+    session_id: 'image_content_session',
+    thread_id: 'image_content_session',
+    turn_id: 'image_turn_1',
+    payload: {
+      item: {
+        type: 'imageGeneration',
+        id: 'image_generation_1',
+        status: 'completed',
+        revisedPrompt: 'green pixel',
+        result: 'aGVsbG8=',
+        savedPath: 'generated.png',
+      },
+    },
+  });
+
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: 'test-token' });
+  await bridge.start();
+  const { port } = bridge.address();
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=test-token`);
+  await once(ws, 'open');
+  const messages = [];
+  ws.on('message', (buffer) => messages.push(JSON.parse(buffer.toString('utf8'))));
+
+  ws.send(JSON.stringify({ id: '1', type: 'session.content', payload: { session_id: 'image_content_session' } }));
+  await waitFor(() => messages.find((message) => message.type === 'response' && message.id === '1'));
+  const response = messages.find((message) => message.type === 'response' && message.id === '1');
+  assert.equal(response.ok, true);
+  const items = response.payload.entries.filter((entry) => entry.type === 'item').map((entry) => entry.item);
+  assert.deepEqual(items.find((item) => item.type === 'userMessage')?.content, userContent);
+  assert.equal(items.find((item) => item.type === 'imageView')?.path, 'local.png');
+  assert.equal(items.find((item) => item.type === 'imageGeneration')?.savedPath, 'generated.png');
+
+  ws.close();
+  await once(ws, 'close');
+  await bridge.stop();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 test('bridge preserves stored session metadata in session.list and session.content', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-session-meta-test-'));
   const sessionId = 'stored_meta_thread_1';

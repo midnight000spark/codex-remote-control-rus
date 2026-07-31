@@ -1,10 +1,15 @@
 package com.haochen.codexremote
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -38,6 +43,7 @@ private sealed interface ConversationScrollMode {
 internal fun ConversationHistoryWebView(
     items: List<ConversationItem>,
     sessionId: String?,
+    imageBridgeUrl: String?,
     displayBasePath: String?,
     restoreScrollY: Int? = null,
     scrollCommand: ConversationScrollCommand? = null,
@@ -46,12 +52,16 @@ internal fun ConversationHistoryWebView(
     onCanScrollToBottomChange: (Boolean) -> Unit = {},
     onOpenCodeBrowser: (itemId: String, path: String?, scrollY: Int) -> Unit,
     onOpenCodeBrowserFile: (path: String, line: Int?, scrollY: Int) -> Unit,
+    onOpenImage: (source: String) -> Unit,
+    onLongPressImage: (source: String, anchorX: Int, anchorY: Int) -> Unit,
+    onLongPressLink: (source: String, scrollY: Int, anchorX: Int, anchorY: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val imageContext = ConversationImageRenderContext(sessionId = sessionId, bridgeUrl = imageBridgeUrl)
     val renderCache = remember(sessionId) { mutableMapOf<String, ConversationRenderCacheEntry>() }
-    val renderedItems = buildCachedConversationRenderedItems(items, displayBasePath, renderCache)
+    val renderedItems = buildCachedConversationRenderedItems(items, displayBasePath, imageContext, renderCache)
     val renderSnapshot = ConversationRenderSnapshot.from(renderedItems)
     val pendingScrollModes = remember(sessionId) { mutableMapOf<String, ConversationScrollMode>() }
     val pendingRenderSnapshots = remember(sessionId) { mutableMapOf<String, ConversationRenderSnapshot>() }
@@ -72,6 +82,9 @@ internal fun ConversationHistoryWebView(
             onOpenLink = { url -> uriHandler.openUri(url) },
             onOpenCodeBrowser = onOpenCodeBrowser,
             onOpenCodeBrowserFile = onOpenCodeBrowserFile,
+            onOpenImage = onOpenImage,
+            onLongPressImage = onLongPressImage,
+            onLongPressLink = onLongPressLink,
             onScrollChanged = { view ->
                 onCanScrollToBottomChange(!isConversationNearBottom(view))
             },
@@ -229,17 +242,18 @@ internal fun ConversationHistoryWebView(
 private fun buildCachedConversationRenderedItems(
     items: List<ConversationItem>,
     displayBasePath: String?,
+    imageContext: ConversationImageRenderContext,
     cache: MutableMap<String, ConversationRenderCacheEntry>,
 ): List<ConversationRenderedItem> {
     val liveIds = items.mapTo(mutableSetOf()) { it.id }
     cache.keys.removeAll { it !in liveIds }
     return items.map { item ->
-        val signature = buildConversationRenderSignature(item, displayBasePath)
+        val signature = buildConversationRenderSignature(item, displayBasePath, imageContext)
         val cached = cache[item.id]
         if (cached != null && cached.signature == signature) {
             cached.renderedItem
         } else {
-            val renderedItem = buildConversationRenderedItem(item, displayBasePath)
+            val renderedItem = buildConversationRenderedItem(item, displayBasePath, imageContext)
             cache[item.id] = ConversationRenderCacheEntry(
                 signature = signature,
                 renderedItem = renderedItem,
@@ -406,11 +420,15 @@ private fun applyConversationScrollModeAfterPatch(
     }
 }
 
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface", "ClickableViewAccessibility")
 private fun buildConversationWebView(
     context: Context,
     onOpenLink: (String) -> Unit,
     onOpenCodeBrowser: (itemId: String, path: String?, scrollY: Int) -> Unit,
     onOpenCodeBrowserFile: (path: String, line: Int?, scrollY: Int) -> Unit,
+    onOpenImage: (source: String) -> Unit,
+    onLongPressImage: (source: String, anchorX: Int, anchorY: Int) -> Unit,
+    onLongPressLink: (source: String, scrollY: Int, anchorX: Int, anchorY: Int) -> Unit,
     onScrollChanged: (WebView) -> Unit,
     onPageFinished: (WebView) -> Unit,
 ): WebView =
@@ -441,6 +459,36 @@ private fun buildConversationWebView(
         settings.setSupportZoom(false)
         settings.allowFileAccess = false
         settings.allowContentAccess = false
+        addJavascriptInterface(ConversationJavascriptBridge(onOpenImage), "CodexRemote")
+        var longPressRawX = 0
+        var longPressRawY = 0
+        setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                longPressRawX = event.rawX.toInt()
+                longPressRawY = event.rawY.toInt()
+            }
+            false
+        }
+        setOnLongClickListener { view ->
+            val result = (view as? WebView)?.hitTestResult ?: return@setOnLongClickListener false
+            val source = result.extra?.trim().orEmpty()
+            if (source.isBlank()) return@setOnLongClickListener false
+            when (result.type) {
+                WebView.HitTestResult.IMAGE_TYPE,
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
+                -> {
+                    onLongPressImage(source, longPressRawX, longPressRawY)
+                    true
+                }
+
+                WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                    onLongPressLink(source, view.scrollY, longPressRawX, longPressRawY)
+                    true
+                }
+
+                else -> false
+            }
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             settings.isAlgorithmicDarkeningAllowed = false
         }
@@ -473,7 +521,20 @@ private fun buildConversationWebView(
             }
 }
 
-private fun handleConversationUrl(
+private class ConversationJavascriptBridge(
+    private val onOpenImage: (String) -> Unit,
+) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun openImage(source: String?) {
+        val normalizedSource = source?.trim().orEmpty()
+        if (normalizedSource.isBlank()) return
+        mainHandler.post { onOpenImage(normalizedSource) }
+    }
+}
+
+internal fun handleConversationUrl(
     rawUrl: String,
     currentScrollY: Int,
     onOpenLink: (String) -> Unit,

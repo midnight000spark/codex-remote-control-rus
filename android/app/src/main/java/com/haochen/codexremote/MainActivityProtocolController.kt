@@ -212,7 +212,12 @@ internal fun MainActivity.handleTurnInput(message: JSONObject, payload: JSONObje
             message.optProtocolString("itemId"),
             message.optProtocolString("item_id"),
         )
-        appendUserInputBubble(turnKey, itemKey, text)
+        appendUserInputBubble(
+            turnKey,
+            itemKey,
+            text,
+            extractConversationUserInputImages(payload.optJSONArray("input")),
+        )
     }
 
 internal fun MainActivity.shouldIgnoreEvent(message: JSONObject): Boolean {

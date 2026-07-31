@@ -13,7 +13,7 @@ import {
   summarizeApprovalPayload,
   summarizeClientPayload,
 } from './bridge/common.mjs';
-import { readSessionFile, clampMaxBytes } from './bridge/file-reader.mjs';
+import { readSessionFile, readSessionImage, clampMaxBytes } from './bridge/file-reader.mjs';
 import { SessionContentController } from './bridge/session-content-controller.mjs';
 import {
   defaultSandboxPolicy,
@@ -120,19 +120,66 @@ export class BridgeServer extends EventEmitter {
     return { host: this.host, port: this.port };
   }
 
-  #handleHttp(req, res) {
-    if (req.url === '/healthz') {
+  async #handleHttp(req, res) {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    if (url.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, name: this.name, version: this.version }));
       return;
     }
-    if (req.url === '/v1/sessions' && req.method === 'GET') {
+    if (url.pathname === '/v1/sessions' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ sessions: this.store.listSessions() }));
       return;
     }
+    if (url.pathname === '/v1/image') {
+      await this.#handleImageRequest(req, res, url);
+      return;
+    }
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'not_found' }));
+  }
+
+  async #handleImageRequest(req, res, url) {
+    if (req.method !== 'GET') {
+      res.writeHead(405, { 'content-type': 'application/json', allow: 'GET' });
+      res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+      return;
+    }
+    const providedToken = url.searchParams.get('token') ?? req.headers['x-bridge-token'];
+    if (this.token && providedToken !== this.token) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+      return;
+    }
+    const sessionId = url.searchParams.get('session_id')?.trim() ?? '';
+    const requestedPath = url.searchParams.get('path')?.trim() ?? '';
+    if (!sessionId || !requestedPath) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'session_id_and_path_required' }));
+      return;
+    }
+
+    try {
+      const image = await readSessionImage(this.store, sessionId, requestedPath);
+      res.writeHead(200, {
+        'content-type': image.mimeType,
+        'content-length': image.bytes,
+        'cache-control': 'private, max-age=60',
+        'x-content-type-options': 'nosniff',
+      });
+      res.end(image.content);
+    } catch (error) {
+      const status = error?.code === 'IMAGE_TOO_LARGE'
+        ? 413
+        : error?.code === 'UNSUPPORTED_IMAGE'
+          ? 415
+          : error?.code === 'SESSION_NOT_FOUND'
+            ? 404
+            : 404;
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: error?.code ?? 'image_not_found' }));
+    }
   }
 
   async #handleConnection(ws, req) {

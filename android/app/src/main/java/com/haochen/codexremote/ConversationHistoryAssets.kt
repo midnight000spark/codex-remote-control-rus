@@ -10,6 +10,17 @@ internal fun buildConversationScript(): String =
       return null;
     }
 
+    function findConversationImage(target) {
+      while (target && target !== document) {
+        if (target.tagName && target.tagName.toLowerCase() === 'img' &&
+            target.classList && target.classList.contains('cr-conversation-image')) {
+          return target;
+        }
+        target = target.parentNode;
+      }
+      return null;
+    }
+
     function normalizeConversationFileTarget(value) {
       if (!value) return '';
       var text = String(value).trim();
@@ -58,6 +69,15 @@ internal fun buildConversationScript(): String =
     }
 
     document.addEventListener('click', function(event) {
+      var image = findConversationImage(event.target);
+      if (image && window.CodexRemote && window.CodexRemote.openImage) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.CodexRemote.openImage(
+          image.currentSrc || image.src || image.getAttribute('src') || ''
+        );
+        return;
+      }
       var anchor = findConversationAnchor(event.target);
       if (!anchor) return;
       var target = isConversationLikelyFileTarget(anchor.getAttribute('href')) ||
@@ -652,6 +672,51 @@ internal fun buildConversationCss(): String =
         max-width: 100% !important;
         height: auto !important;
         border-radius: 12px;
+    }
+
+    .cr-conversation-images {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .cr-conversation-image-frame {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        border: 1px solid rgba(24, 51, 38, 0.12);
+        border-radius: 12px;
+        background: #F6FBF7;
+    }
+
+    .cr-md .cr-conversation-image-frame {
+        margin: 0.5em 0;
+    }
+
+    .cr-conversation-image {
+        display: block;
+        width: auto;
+        max-width: 100% !important;
+        max-height: 70vh;
+        height: auto !important;
+        margin: 0 auto;
+        object-fit: contain;
+    }
+
+    .cr-conversation-image-error {
+        display: flex;
+        min-height: 84px;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        color: #6D8876;
+        font-size: 0.88em;
+        text-align: center;
+    }
+
+    .cr-conversation-image-error[hidden] {
+        display: none !important;
     }
 
     .cr-md-table-wrap {

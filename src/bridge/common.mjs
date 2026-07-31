@@ -40,6 +40,25 @@ export function extractUserMessageText(content = []) {
     .join('\n');
 }
 
+export function normalizeUserMessageContent(input, fallbackText = '') {
+  const content = Array.isArray(input)
+    ? input.filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    : [];
+  if (content.length > 0) return content;
+  const text = String(fallbackText ?? '').trim();
+  return text ? [{ type: 'text', text }] : [];
+}
+
+export function userMessageContentSignature(input, fallbackText = '') {
+  const normalized = normalizeUserMessageContent(input, fallbackText).map((item) => {
+    if (item.type === 'text') return { type: 'text', text: String(item.text ?? '').trim() };
+    if (item.type === 'image') return { type: 'image', url: String(item.url ?? '').trim() };
+    if (item.type === 'localImage') return { type: 'localImage', path: String(item.path ?? '').trim() };
+    return item;
+  });
+  return JSON.stringify(normalized);
+}
+
 export function normalizeTurnStatusValue(status) {
   if (typeof status === 'string') return status.trim();
   if (status && typeof status === 'object') {

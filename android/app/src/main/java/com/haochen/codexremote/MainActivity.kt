@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
     internal var chatScrollCommand by mutableStateOf<ConversationScrollCommand?>(null)
     internal var chatCanScrollToBottom by mutableStateOf(false)
     internal var codeBrowserState by mutableStateOf<CodeBrowserState?>(null)
+    internal var conversationLongPressState by mutableStateOf<ConversationLongPressState?>(null)
+    internal var conversationImageViewerState by mutableStateOf<ConversationImageViewerState?>(null)
+    internal var pendingConversationImageSave: DownloadedConversationImage? = null
     internal var disconnectRequested = false
     internal var bootSyncRequested = false
     internal var lastSyncedSeq = 0

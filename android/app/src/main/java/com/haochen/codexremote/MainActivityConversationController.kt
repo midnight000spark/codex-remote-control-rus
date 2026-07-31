@@ -104,9 +104,14 @@ internal fun MainActivity.appendStandaloneAssistantBubble(turnKey: String, text:
         conversationItems.add(createAssistantBubble(turnKey, text))
     }
 
-internal fun MainActivity.appendUserInputBubble(turnKey: String, itemKey: String, text: String) {
+internal fun MainActivity.appendUserInputBubble(
+        turnKey: String,
+        itemKey: String,
+        text: String,
+        images: List<ConversationImage> = emptyList(),
+    ) {
         val normalizedText = text.trim()
-        if (normalizedText.isBlank()) return
+        if (normalizedText.isBlank() && images.isEmpty()) return
         val normalizedItemKey = normalizeProtocolString(itemKey)
         val normalizedTurnKey = normalizeProtocolString(turnKey)
         val sourceItemId = normalizedItemKey.takeIf { it.isNotBlank() }
@@ -114,8 +119,11 @@ internal fun MainActivity.appendUserInputBubble(turnKey: String, itemKey: String
             val bubble = item as? ConversationItem.Bubble ?: return@firstOrNull false
             if (!bubble.right) return@firstOrNull false
             val sameSourceItem = sourceItemId != null && bubble.sourceItemId == sourceItemId
-            val sameTurnText = bubble.turnKey == normalizedTurnKey && normalizeAssistantText(bubble.text) == normalizeAssistantText(normalizedText)
-            sameSourceItem || sameTurnText
+            val sameTurnContent =
+                bubble.turnKey == normalizedTurnKey &&
+                    normalizeAssistantText(bubble.text) == normalizeAssistantText(normalizedText) &&
+                    bubble.images == images
+            sameSourceItem || sameTurnContent
         } as? ConversationItem.Bubble
         if (existing != null) {
             if (existing.turnKey.isNullOrBlank() && normalizedTurnKey.isNotBlank()) {
@@ -134,6 +142,7 @@ internal fun MainActivity.appendUserInputBubble(turnKey: String, itemKey: String
                 id = buildConversationItemId("user", normalizedItemKey.ifBlank { normalizedTurnKey }, normalizedTurnKey),
                 right = true,
                 text = normalizedText,
+                images = images,
                 backgroundColor = 0xFF1A8F55.toInt(),
                 textColor = AndroidColor.WHITE,
                 turnKey = normalizedTurnKey,
@@ -453,6 +462,8 @@ internal fun MainActivity.labelThreadItem(item: JSONObject): String {
             "reasoning" -> "思考"
             "commandExecution" -> "命令执行"
             "fileChange" -> "文件修改"
+            "imageView" -> "图片查看"
+            "imageGeneration" -> "图片生成"
             "contextCompaction" -> "上下文压缩"
             else -> item.optString("type", "项目")
         }

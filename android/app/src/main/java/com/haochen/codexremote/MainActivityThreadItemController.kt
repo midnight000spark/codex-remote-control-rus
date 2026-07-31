@@ -16,6 +16,11 @@ internal fun MainActivity.handleThreadItemEvent(eventName: String, payload: JSON
                     }
                 }
             }
+            "imageView", "imageGeneration" -> {
+                if (eventName == "item/completed") {
+                    activeSessionId?.takeIf { it.isNotBlank() }?.let(::requestSessionRefresh)
+                }
+            }
             "fileChange" -> handleFileChangeItem(turnKey, item)
             else -> Unit
         }
@@ -100,6 +105,63 @@ internal fun MainActivity.extractPlainTextContent(content: JSONArray?): String {
             }
         }
         return parts.joinToString("\n").trim()
+    }
+
+internal fun extractConversationUserInputImages(content: JSONArray?): List<ConversationImage> {
+        if (content == null) return emptyList()
+        return buildList {
+            for (i in 0 until content.length()) {
+                val part = content.optJSONObject(i) ?: continue
+                when (part.optString("type", "")) {
+                    "image" -> conversationImageFromUrl(part.optString("url", ""))?.let(::add)
+                    "localImage" -> part.optString("path", "").trim().takeIf { it.isNotBlank() }?.let { path ->
+                        add(ConversationImage(source = path, sourceType = ConversationImageSourceType.Local))
+                    }
+                }
+            }
+        }
+    }
+
+internal fun MainActivity.extractThreadItemImages(item: JSONObject): List<ConversationImage> {
+        return when (item.optString("type", "")) {
+            "userMessage" -> extractConversationUserInputImages(item.optJSONArray("content"))
+            "imageView" -> item.optString("path", "").trim().takeIf { it.isNotBlank() }?.let { path ->
+                listOf(ConversationImage(source = path, sourceType = ConversationImageSourceType.Local, alt = "查看的图片"))
+            }.orEmpty()
+            "imageGeneration" -> {
+                val alt = firstNonEmpty(
+                    item.optString("revisedPrompt", ""),
+                    item.optString("revised_prompt", ""),
+                    "生成的图片",
+                )
+                val savedPath = firstNonEmpty(
+                    item.optString("savedPath", ""),
+                    item.optString("saved_path", ""),
+                )
+                when {
+                    savedPath.isNotBlank() -> listOf(
+                        ConversationImage(source = savedPath, sourceType = ConversationImageSourceType.Local, alt = alt),
+                    )
+                    item.optString("result", "").isNotBlank() -> {
+                        val result = item.optString("result", "").trim()
+                        val image =
+                            if (
+                                result.startsWith("data:image/", ignoreCase = true) ||
+                                result.startsWith("http://", ignoreCase = true) ||
+                                result.startsWith("https://", ignoreCase = true)
+                            ) {
+                                conversationImageFromUrl(result, alt)
+                                    ?: ConversationImage(source = result, sourceType = ConversationImageSourceType.Inline, alt = alt)
+                            } else {
+                                ConversationImage(source = result, sourceType = ConversationImageSourceType.Inline, alt = alt)
+                            }
+                        listOf(image)
+                    }
+                    else -> emptyList()
+                }
+            }
+            else -> emptyList()
+        }
     }
 
 internal fun MainActivity.formatThreadItemDetails(item: JSONObject): String {

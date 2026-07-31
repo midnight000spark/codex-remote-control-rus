@@ -9,6 +9,7 @@ sealed interface ConversationItem {
         val text: String,
         val backgroundColor: Int,
         val textColor: Int,
+        val images: List<ConversationImage> = emptyList(),
         val turnKey: String? = null,
         val assistantKey: String? = null,
         val sourceItemId: String? = null,
@@ -31,6 +32,23 @@ sealed interface ConversationItem {
         val turnId: String? = null,
     ) : ConversationItem
 }
+
+enum class ConversationImageSourceType {
+    Remote,
+    Local,
+    Inline,
+}
+
+data class ConversationImage(
+    val source: String,
+    val sourceType: ConversationImageSourceType,
+    val alt: String = "",
+)
+
+internal data class ConversationImageRenderContext(
+    val sessionId: String?,
+    val bridgeUrl: String?,
+)
 
 data class ConversationDiffEntry(
     val path: String,

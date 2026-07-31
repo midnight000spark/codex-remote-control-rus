@@ -2,10 +2,24 @@ import { createEvent } from '../protocol.mjs';
 import {
   extractUserMessageText,
   getTurnInputItemId,
+  normalizeUserMessageContent,
   normalizeTurnStatusValue,
+  userMessageContentSignature,
 } from './common.mjs';
 import { SYNC_LOG_EVENT_LIMIT, summarizeSyncEntries, syncItemTypeCounts } from './sync-log.mjs';
 import { eventSignature, mergeInitialSessionEvents, pruneHydratedEvents } from './session-event-signature.mjs';
+
+const CONVERSATION_ITEM_TYPES = new Set([
+  'userMessage',
+  'agentMessage',
+  'fileChange',
+  'imageView',
+  'imageGeneration',
+]);
+
+function isConversationItem(item) {
+  return CONVERSATION_ITEM_TYPES.has(item?.type);
+}
 
 export class TurnContentBuilder {
   constructor({ backend, store, loadHydrationThread, logSync = () => {} }) {
@@ -31,16 +45,16 @@ export class TurnContentBuilder {
       if (event?.event !== 'item/completed') continue;
       const item = event?.payload?.item;
       if (item?.type !== 'userMessage') continue;
-      const text = extractUserMessageText(item.content ?? []);
-      if (!text) continue;
-      completedUserMessageSignatures.add(`${event.turn_id ?? ''}|${text}`);
+      const content = normalizeUserMessageContent(item.content);
+      if (content.length === 0) continue;
+      completedUserMessageSignatures.add(`${event.turn_id ?? ''}|${userMessageContentSignature(content)}`);
     }
 
     for (const event of events) {
       if (event?.event === 'turn/input') {
-        const text = String(event?.payload?.text ?? '').trim();
-        if (!text) continue;
-        if (completedUserMessageSignatures.has(`${event.turn_id ?? ''}|${text}`)) {
+        const content = normalizeUserMessageContent(event?.payload?.input, event?.payload?.text);
+        if (content.length === 0) continue;
+        if (completedUserMessageSignatures.has(`${event.turn_id ?? ''}|${userMessageContentSignature(content)}`)) {
           continue;
         }
         const itemId = getTurnInputItemId({
@@ -60,7 +74,7 @@ export class TurnContentBuilder {
           item: {
             type: 'userMessage',
             id: itemId,
-            content: [{ type: 'text', text }],
+            content,
           },
         });
         continue;
@@ -69,7 +83,7 @@ export class TurnContentBuilder {
       if (event?.event !== 'item/completed') continue;
       const item = event?.payload?.item;
       if (!item?.type) continue;
-      if (item.type !== 'userMessage' && item.type !== 'agentMessage' && item.type !== 'fileChange') continue;
+      if (!isConversationItem(item)) continue;
 
       const itemId = item.id ?? `stored_item_${event.seq ?? entries.length}`;
       if (seenItemIds.has(itemId)) continue;
@@ -100,18 +114,18 @@ export class TurnContentBuilder {
       const item = entry?.item;
       if (item?.id) existingItemIds.add(item.id);
       if (item?.type !== 'userMessage') continue;
-      const text = extractUserMessageText(item.content ?? []);
-      if (text) {
-        existingInputSignatures.add(`${entry.turn_id ?? ''}|${text}`);
+      const content = normalizeUserMessageContent(item.content);
+      if (content.length > 0) {
+        existingInputSignatures.add(`${entry.turn_id ?? ''}|${userMessageContentSignature(content)}`);
       }
     }
 
     const events = this.store.syncEvents(sessionId, 0);
     for (const event of events) {
       if (event?.event !== 'turn/input') continue;
-      const text = String(event?.payload?.text ?? '').trim();
-      if (!text) continue;
-      const signature = `${event.turn_id ?? ''}|${text}`;
+      const content = normalizeUserMessageContent(event?.payload?.input, event?.payload?.text);
+      if (content.length === 0) continue;
+      const signature = `${event.turn_id ?? ''}|${userMessageContentSignature(content)}`;
       const itemId = getTurnInputItemId({
         payload: event?.payload,
         requestId: event?.request_id ?? '',
@@ -129,7 +143,7 @@ export class TurnContentBuilder {
         item: {
           type: 'userMessage',
           id: itemId,
-          content: [{ type: 'text', text }],
+          content,
         },
       };
       const index = this.#lastContentEntryIndexForTurn(merged, event.turn_id ?? '');
@@ -173,10 +187,11 @@ export class TurnContentBuilder {
       let turnItemSeq = 0;
       for (const item of items) {
         if (item?.type === 'userMessage') {
-          const text = extractUserMessageText(item.content ?? []);
-          if (text) {
+          const content = normalizeUserMessageContent(item.content);
+          if (content.length > 0) {
+            const text = extractUserMessageText(content);
             const fallbackSeq = item.id ? null : String(++turnItemSeq).padStart(4, '0');
-            const itemId = this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turn.id, text)
+            const itemId = this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turn.id, content)
               ?? item.id
               ?? `turn_${turn.id}_user_${fallbackSeq}`;
             events.push(createEvent('turn/input', {
@@ -187,7 +202,7 @@ export class TurnContentBuilder {
                 itemId,
                 item_id: itemId,
                 text,
-                input: item.content ?? null,
+                input: content,
               },
             }));
           }
@@ -242,13 +257,13 @@ export class TurnContentBuilder {
       let turnItemSeq = 0;
       for (const item of items) {
         if (!item?.type) continue;
-        if (item.type !== 'userMessage' && item.type !== 'agentMessage' && item.type !== 'fileChange') {
+        if (!isConversationItem(item)) {
           continue;
         }
-        const text = item.type === 'userMessage' ? extractUserMessageText(item.content ?? []) : '';
+        const content = item.type === 'userMessage' ? normalizeUserMessageContent(item.content) : [];
         const fallbackSeq = item.id ? null : String(++turnItemSeq).padStart(4, '0');
         const storedUserInputItemId = item.type === 'userMessage'
-          ? this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turn.id, text)
+          ? this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turn.id, content)
           : null;
         const fallbackItemId = item.type === 'userMessage'
           ? `turn_${turn.id}_user_${fallbackSeq}`
@@ -418,13 +433,13 @@ export class TurnContentBuilder {
     let turnItemSeq = 0;
     for (const item of items) {
       if (!item?.type) continue;
-      if (item.type !== 'userMessage' && item.type !== 'agentMessage' && item.type !== 'fileChange') {
+      if (!isConversationItem(item)) {
         continue;
       }
-      const text = item.type === 'userMessage' ? extractUserMessageText(item.content ?? []) : '';
+      const content = item.type === 'userMessage' ? normalizeUserMessageContent(item.content) : [];
       const fallbackSeq = item.id ? null : String(++turnItemSeq).padStart(4, '0');
       const storedUserInputItemId = item.type === 'userMessage'
-        ? this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turnId, text)
+        ? this.#resolveStoredTurnInputItemId(storedUserInputItemIds, turnId, content)
         : null;
       const fallbackItemId = item.type === 'userMessage'
         ? `turn_${turnId}_user_${fallbackSeq}`
@@ -521,8 +536,8 @@ export class TurnContentBuilder {
     for (const event of session.events ?? []) {
       if ((event?.turn_id ?? '') !== turnId) continue;
       if (event.event === 'turn/input') {
-        const text = String(event?.payload?.text ?? '').trim();
-        if (!text) continue;
+        const content = normalizeUserMessageContent(event?.payload?.input, event?.payload?.text);
+        if (content.length === 0) continue;
         const itemId = getTurnInputItemId({
           payload: event?.payload,
           requestId: event?.request_id ?? '',
@@ -535,7 +550,7 @@ export class TurnContentBuilder {
         items.push({
           type: 'userMessage',
           id: itemId,
-          content: [{ type: 'text', text }],
+          content,
         });
         continue;
       }
@@ -543,7 +558,7 @@ export class TurnContentBuilder {
       if (event.event !== 'item/completed') continue;
       const item = event?.payload?.item;
       if (!item?.type) continue;
-      if (item.type !== 'userMessage' && item.type !== 'agentMessage' && item.type !== 'fileChange') continue;
+      if (!isConversationItem(item)) continue;
       const itemId = item.id ?? `stored_item_${event.seq ?? items.length}`;
       if (seenItemIds.has(itemId)) continue;
       seenItemIds.add(itemId);
@@ -622,36 +637,38 @@ export class TurnContentBuilder {
   #buildStoredTurnInputItemIdIndex(sessionId) {
     const session = this.store.getSession(sessionId);
     const events = session?.events ?? [];
-    const byTurnAndText = new Map();
-    const unresolvedByText = new Map();
+    const byTurnAndInput = new Map();
+    const unresolvedByInput = new Map();
     for (const event of events) {
       if (event?.event !== 'turn/input') continue;
       const turnId = event.turn_id ?? '';
-      const text = String(event?.payload?.text ?? '').trim();
+      const content = normalizeUserMessageContent(event?.payload?.input, event?.payload?.text);
+      const inputSignature = userMessageContentSignature(content);
       const itemId = getTurnInputItemId({ payload: event?.payload, requestId: event?.request_id ?? '' });
-      if (!text || !itemId) continue;
+      if (content.length === 0 || !itemId) continue;
       if (turnId) {
-        byTurnAndText.set(`${turnId}|${text}`, itemId);
+        byTurnAndInput.set(`${turnId}|${inputSignature}`, itemId);
       } else {
-        const queue = unresolvedByText.get(text) ?? [];
+        const queue = unresolvedByInput.get(inputSignature) ?? [];
         if (!queue.includes(itemId)) {
           queue.push(itemId);
         }
-        unresolvedByText.set(text, queue);
+        unresolvedByInput.set(inputSignature, queue);
       }
     }
-    return { byTurnAndText, unresolvedByText };
+    return { byTurnAndInput, unresolvedByInput };
   }
 
-  #resolveStoredTurnInputItemId(index, turnId, text) {
-    if (!text) return null;
-    const exact = turnId ? index.byTurnAndText.get(`${turnId}|${text}`) : null;
+  #resolveStoredTurnInputItemId(index, turnId, content) {
+    if (!content || content.length === 0) return null;
+    const inputSignature = userMessageContentSignature(content);
+    const exact = turnId ? index.byTurnAndInput.get(`${turnId}|${inputSignature}`) : null;
     if (exact) return exact;
-    const unresolved = index.unresolvedByText.get(text);
+    const unresolved = index.unresolvedByInput.get(inputSignature);
     if (!unresolved || unresolved.length === 0) return null;
     const itemId = unresolved.shift() ?? null;
     if (unresolved.length === 0) {
-      index.unresolvedByText.delete(text);
+      index.unresolvedByInput.delete(inputSignature);
     }
     return itemId;
   }

@@ -141,6 +141,7 @@ internal fun MainActivity.ChatPage() {
                 ConversationHistoryWebView(
                     items = conversationItems,
                     sessionId = activeSessionId,
+                    imageBridgeUrl = currentBridgeUrl ?: bridgeUrl,
                     displayBasePath = activeSession?.cwd,
                     restoreScrollY = chatRestoreScrollY,
                     scrollCommand = chatScrollCommand,
@@ -160,6 +161,13 @@ internal fun MainActivity.ChatPage() {
                     },
                     onOpenCodeBrowserFile = { path, line, scrollY ->
                         openCodeBrowserFile(path, line, scrollY)
+                    },
+                    onOpenImage = { source -> openConversationImage(source) },
+                    onLongPressImage = { source, anchorX, anchorY ->
+                        openConversationImageActions(source, anchorX, anchorY)
+                    },
+                    onLongPressLink = { source, scrollY, anchorX, anchorY ->
+                        openConversationLinkActions(source, scrollY, anchorX, anchorY)
                     },
                     modifier = Modifier
                         .fillMaxSize()

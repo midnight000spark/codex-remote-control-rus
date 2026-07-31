@@ -44,11 +44,13 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
         return when (itemType) {
             "userMessage" -> {
                 val text = extractThreadItemText(item)
-                if (text.isBlank()) return null
+                val images = extractThreadItemImages(item)
+                if (text.isBlank() && images.isEmpty()) return null
                 ConversationItem.Bubble(
                     id = buildConversationItemId("user", itemId.ifBlank { turnId }, turnId),
                     right = true,
                     text = text,
+                    images = images,
                     backgroundColor = 0xFF1A8F55.toInt(),
                     textColor = AndroidColor.WHITE,
                     turnKey = turnId.takeIf { it.isNotBlank() },
@@ -66,6 +68,20 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                     textColor = 0xFF183326.toInt(),
                     turnKey = turnId.ifBlank { "assistant" },
                     assistantKey = itemId.takeIf { it.isNotBlank() },
+                )
+            }
+            "imageView", "imageGeneration" -> {
+                val images = extractThreadItemImages(item)
+                if (images.isEmpty()) return null
+                ConversationItem.Bubble(
+                    id = buildConversationItemId("image", itemId.ifBlank { turnId }, turnId),
+                    right = false,
+                    text = "",
+                    images = images,
+                    backgroundColor = 0xFFF1F8F2.toInt(),
+                    textColor = 0xFF183326.toInt(),
+                    turnKey = turnId.takeIf { it.isNotBlank() },
+                    sourceItemId = itemId.takeIf { it.isNotBlank() },
                 )
             }
             "fileChange" -> {

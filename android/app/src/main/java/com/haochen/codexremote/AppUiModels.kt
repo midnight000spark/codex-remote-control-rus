@@ -13,6 +13,23 @@ internal enum class ConversationScrollTarget {
     Bottom,
 }
 
+internal enum class ConversationLongPressKind {
+    Image,
+    Link,
+}
+
+internal data class ConversationLongPressState(
+    val kind: ConversationLongPressKind,
+    val source: String,
+    val anchorX: Int,
+    val anchorY: Int,
+    val scrollY: Int = 0,
+)
+
+internal data class ConversationImageViewerState(
+    val source: String,
+)
+
 internal enum class ChatMode {
     Default,
     Plan,

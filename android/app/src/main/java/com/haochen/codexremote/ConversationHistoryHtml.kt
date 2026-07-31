@@ -3,7 +3,8 @@ package com.haochen.codexremote
 internal fun buildConversationPageHtml(
     items: List<ConversationItem>,
     displayBasePath: String?,
-): String = buildConversationRenderedPageHtml(buildConversationRenderedItems(items, displayBasePath))
+    imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
+): String = buildConversationRenderedPageHtml(buildConversationRenderedItems(items, displayBasePath, imageContext))
 
 internal fun buildConversationRenderedPageHtml(
     renderedItems: List<ConversationRenderedItem>,
@@ -57,12 +58,14 @@ internal data class ConversationRenderCacheEntry(
 internal fun buildConversationRenderedItems(
     items: List<ConversationItem>,
     displayBasePath: String?,
+    imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
 ): List<ConversationRenderedItem> =
-    items.map { item -> buildConversationRenderedItem(item, displayBasePath) }
+    items.map { item -> buildConversationRenderedItem(item, displayBasePath, imageContext) }
 
 internal fun buildConversationRenderedItem(
     item: ConversationItem,
     displayBasePath: String?,
+    imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
 ): ConversationRenderedItem {
     val type =
         when (item) {
@@ -72,7 +75,7 @@ internal fun buildConversationRenderedItem(
         }
     val contentHtml =
         when (item) {
-            is ConversationItem.Bubble -> item.toHtml()
+            is ConversationItem.Bubble -> item.toHtml(imageContext)
             is ConversationItem.SystemNote -> item.toHtml()
             is ConversationItem.FileChange -> item.toHtml(displayBasePath)
         }
@@ -86,6 +89,7 @@ internal fun buildConversationRenderedItem(
 internal fun buildConversationRenderSignature(
     item: ConversationItem,
     displayBasePath: String?,
+    imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
 ): String =
     when (item) {
         is ConversationItem.Bubble ->
@@ -94,6 +98,11 @@ internal fun buildConversationRenderSignature(
                 item.id,
                 item.right.toString(),
                 item.text,
+                imageContext.sessionId.orEmpty(),
+                imageContext.bridgeUrl.orEmpty(),
+                item.images.joinToString("\u001E") { image ->
+                    listOf(image.sourceType.name, image.source, image.alt).joinToString("\u001D")
+                },
                 item.backgroundColor.toString(),
                 item.textColor.toString(),
                 item.turnKey.orEmpty(),
@@ -129,8 +138,9 @@ internal fun buildConversationRenderSignature(
 internal fun buildConversationItemsHtml(
     items: List<ConversationItem>,
     displayBasePath: String?,
+    imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
 ): String =
-    buildConversationRenderedItems(items, displayBasePath).joinToString("") { it.html }
+    buildConversationRenderedItems(items, displayBasePath, imageContext).joinToString("") { it.html }
 
 internal fun wrapConversationRenderedItem(
     id: String,
@@ -147,20 +157,70 @@ internal fun wrapConversationRenderedItem(
     </div>
     """.trimIndent()
 
-internal fun ConversationItem.Bubble.toHtml(): String {
+internal fun ConversationItem.Bubble.toHtml(imageContext: ConversationImageRenderContext): String {
+    val textHtml =
+        if (text.isBlank()) {
+            ""
+        } else if (right) {
+            buildPlainTextHtml(text)
+        } else {
+            buildConversationMarkdownHtml(text) { source ->
+                conversationImageFromUrl(source)?.let { image -> resolveConversationImageUrl(image, imageContext) }
+            }
+        }
+    val imagesHtml = buildConversationImagesHtml(images, imageContext)
+    val contentHtml = textHtml + imagesHtml
     return if (right) {
         """
         <div class="cr-message user">
-            <div class="cr-bubble user">${buildPlainTextHtml(text)}</div>
+            <div class="cr-bubble user">$contentHtml</div>
         </div>
         """.trimIndent()
     } else {
         """
         <div class="cr-message assistant">
-            <div class="cr-bubble assistant">${buildConversationMarkdownHtml(text)}</div>
+            <div class="cr-bubble assistant">$contentHtml</div>
         </div>
         """.trimIndent()
     }
+}
+
+internal fun buildConversationImagesHtml(
+    images: List<ConversationImage>,
+    imageContext: ConversationImageRenderContext,
+): String {
+    if (images.isEmpty()) return ""
+    return images.joinToString(
+        prefix = """<div class="cr-conversation-images">""",
+        postfix = "</div>",
+        separator = "",
+    ) { image ->
+        buildConversationImageHtml(resolveConversationImageUrl(image, imageContext), image.alt)
+    }
+}
+
+internal fun buildConversationImageHtml(
+    source: String?,
+    alt: String,
+): String {
+    val normalizedSource = source?.trim().orEmpty()
+    val safeAlt = escapeConversationHtmlAttribute(alt)
+    if (normalizedSource.isBlank()) {
+        return """<span class="cr-conversation-image-frame"><span class="cr-conversation-image-error">图片无法加载</span></span>"""
+    }
+    return """
+        <span class="cr-conversation-image-frame">
+            <img
+                class="cr-conversation-image"
+                src="${escapeConversationHtmlAttribute(normalizedSource)}"
+                alt="$safeAlt"
+                loading="lazy"
+                decoding="async"
+                onerror="this.hidden=true;this.nextElementSibling.hidden=false"
+            />
+            <span class="cr-conversation-image-error" hidden>图片加载失败</span>
+        </span>
+    """.trimIndent()
 }
 
 internal fun ConversationItem.SystemNote.toHtml(): String =

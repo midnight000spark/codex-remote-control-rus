@@ -15,6 +15,85 @@ internal fun escapeConversationHtmlAttribute(text: String): String = TextUtils.h
 
 internal fun encodeUrlComponent(value: String): String = Uri.encode(value)
 
+internal fun conversationImageFromUrl(
+    source: String,
+    alt: String = "",
+): ConversationImage? {
+    val normalized = source.trim()
+    if (normalized.isBlank()) return null
+    val sourceType = when {
+        normalized.startsWith("data:image/", ignoreCase = true) -> ConversationImageSourceType.Inline
+        normalized.startsWith("http://", ignoreCase = true) ||
+            normalized.startsWith("https://", ignoreCase = true) -> ConversationImageSourceType.Remote
+        else -> ConversationImageSourceType.Local
+    }
+    return ConversationImage(source = normalized, sourceType = sourceType, alt = alt.trim())
+}
+
+internal fun resolveConversationImageUrl(
+    image: ConversationImage,
+    context: ConversationImageRenderContext,
+): String? =
+    when (image.sourceType) {
+        ConversationImageSourceType.Remote -> image.source.takeIf { source ->
+            source.startsWith("http://", ignoreCase = true) || source.startsWith("https://", ignoreCase = true)
+        }
+
+        ConversationImageSourceType.Inline -> {
+            val source = image.source.trim()
+            when {
+                source.startsWith("data:image/", ignoreCase = true) -> source
+                source.isNotBlank() -> "data:image/png;base64,${source.filterNot(Char::isWhitespace)}"
+                else -> null
+            }
+        }
+
+        ConversationImageSourceType.Local -> buildConversationBridgeImageUrl(
+            bridgeUrl = context.bridgeUrl,
+            sessionId = context.sessionId,
+            path = normalizeConversationLocalImagePath(image.source),
+        )
+    }
+
+internal fun buildConversationBridgeImageUrl(
+    bridgeUrl: String?,
+    sessionId: String?,
+    path: String?,
+): String? {
+    val normalizedBridgeUrl = bridgeUrl?.trim().orEmpty()
+    val normalizedSessionId = sessionId?.trim().orEmpty()
+    val normalizedPath = path?.trim().orEmpty()
+    if (normalizedBridgeUrl.isBlank() || normalizedSessionId.isBlank() || normalizedPath.isBlank()) return null
+
+    val bridgeUri = Uri.parse(normalizedBridgeUrl)
+    val httpScheme = when (bridgeUri.scheme?.lowercase()) {
+        "ws" -> "http"
+        "wss" -> "https"
+        else -> return null
+    }
+    return bridgeUri.buildUpon()
+        .scheme(httpScheme)
+        .encodedPath("/v1/image")
+        .clearQuery()
+        .fragment(null)
+        .apply {
+            bridgeUri.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { appendQueryParameter("token", it) }
+            appendQueryParameter("session_id", normalizedSessionId)
+            appendQueryParameter("path", normalizedPath)
+        }
+        .build()
+        .toString()
+}
+
+internal fun normalizeConversationLocalImagePath(source: String): String? {
+    val normalized = source.trim()
+    if (normalized.isBlank()) return null
+    if (normalized.startsWith("file:", ignoreCase = true)) {
+        return Uri.parse(normalized).path?.takeIf { it.isNotBlank() }
+    }
+    return Uri.decode(normalized)
+}
+
 internal data class ConversationFileTarget(
     val path: String,
     val line: Int? = null,

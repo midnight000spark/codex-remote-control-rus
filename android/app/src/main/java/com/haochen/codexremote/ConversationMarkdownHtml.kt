@@ -57,17 +57,24 @@ internal enum class ConversationMarkdownHtmlListType {
     Unordered,
 }
 
-internal fun buildConversationMarkdownHtml(markdown: String): String {
+internal fun buildConversationMarkdownHtml(
+    markdown: String,
+    imageUrlResolver: ((String) -> String?)? = null,
+): String {
     val blocks = parseConversationMarkdownBlocks(markdown)
     if (blocks.isEmpty()) {
         val content = markdown.replace("\r\n", "\n").trim()
-        return if (content.isBlank()) "" else """<section class="cr-md"><p>${buildConversationInlineHtml(content)}</p></section>"""
+        return if (content.isBlank()) {
+            ""
+        } else {
+            """<section class="cr-md"><p>${buildConversationInlineHtml(content, imageUrlResolver)}</p></section>"""
+        }
     }
 
     return buildString {
         append("""<section class="cr-md">""")
         blocks.forEach { block ->
-            append(block.toHtml())
+            append(block.toHtml(imageUrlResolver))
         }
         append("</section>")
     }
@@ -203,26 +210,26 @@ internal fun parseConversationMarkdownBlocks(markdown: String): List<Conversatio
     return blocks
 }
 
-internal fun ConversationMarkdownBlock.toHtml(): String =
+internal fun ConversationMarkdownBlock.toHtml(imageUrlResolver: ((String) -> String?)? = null): String =
     when (this) {
         is ConversationMarkdownBlock.Heading ->
             buildConversationHtmlTag(
                 tag = "h$level",
-                content = buildConversationInlineHtml(content),
+                content = buildConversationInlineHtml(content, imageUrlResolver),
             )
 
         is ConversationMarkdownBlock.Paragraph ->
             buildConversationHtmlTag(
                 tag = "p",
-                content = buildConversationInlineHtml(content),
+                content = buildConversationInlineHtml(content, imageUrlResolver),
             )
 
-        is ConversationMarkdownBlock.ListBlock -> buildConversationMarkdownListHtml(items)
+        is ConversationMarkdownBlock.ListBlock -> buildConversationMarkdownListHtml(items, imageUrlResolver)
 
         is ConversationMarkdownBlock.Quote ->
             buildConversationHtmlTag(
                 tag = "blockquote",
-                content = buildConversationHtmlTag("p", buildConversationInlineHtml(lines.joinToString("\n"))),
+                content = buildConversationHtmlTag("p", buildConversationInlineHtml(lines.joinToString("\n"), imageUrlResolver)),
             )
 
         is ConversationMarkdownBlock.CodeBlock ->
@@ -250,13 +257,13 @@ internal fun ConversationMarkdownBlock.toHtml(): String =
             buildString {
                 append("""<div class="cr-md-table-wrap"><table><thead><tr>""")
                 headers.forEach { header ->
-                    append(buildConversationHtmlTag("th", buildConversationInlineHtml(header)))
+                    append(buildConversationHtmlTag("th", buildConversationInlineHtml(header, imageUrlResolver)))
                 }
                 append("</tr></thead><tbody>")
                 rows.forEach { row ->
                     append("<tr>")
                     row.forEach { cell ->
-                        append(buildConversationHtmlTag("td", buildConversationInlineHtml(cell)))
+                        append(buildConversationHtmlTag("td", buildConversationInlineHtml(cell, imageUrlResolver)))
                     }
                     append("</tr>")
                 }
@@ -264,7 +271,10 @@ internal fun ConversationMarkdownBlock.toHtml(): String =
             }
     }
 
-internal fun buildConversationMarkdownListHtml(items: List<ConversationMarkdownListItem>): String {
+internal fun buildConversationMarkdownListHtml(
+    items: List<ConversationMarkdownListItem>,
+    imageUrlResolver: ((String) -> String?)? = null,
+): String {
     if (items.isEmpty()) return ""
 
     val roots = mutableListOf<ConversationMarkdownListNode>()
@@ -285,10 +295,13 @@ internal fun buildConversationMarkdownListHtml(items: List<ConversationMarkdownL
         stack += node
     }
 
-    return renderConversationMarkdownListNodes(roots)
+    return renderConversationMarkdownListNodes(roots, imageUrlResolver)
 }
 
-internal fun renderConversationMarkdownListNodes(nodes: List<ConversationMarkdownListNode>): String =
+internal fun renderConversationMarkdownListNodes(
+    nodes: List<ConversationMarkdownListNode>,
+    imageUrlResolver: ((String) -> String?)? = null,
+): String =
     buildString {
         var index = 0
         while (index < nodes.size) {
@@ -302,9 +315,9 @@ internal fun renderConversationMarkdownListNodes(nodes: List<ConversationMarkdow
                     append(buildConversationHtmlTag("""span class="cr-md-task-marker"""", escapeConversationHtml(node.item.marker)))
                     append(' ')
                 }
-                append(buildConversationInlineHtml(node.item.content))
+                append(buildConversationInlineHtml(node.item.content, imageUrlResolver))
                 if (node.children.isNotEmpty()) {
-                    append(renderConversationMarkdownListNodes(node.children))
+                    append(renderConversationMarkdownListNodes(node.children, imageUrlResolver))
                 }
                 append("</li>")
                 index += 1
@@ -344,7 +357,10 @@ internal fun closeConversationMarkdownListTag(type: ConversationMarkdownHtmlList
         ConversationMarkdownHtmlListType.Unordered -> "</ul>"
     }
 
-internal fun buildConversationInlineHtml(text: String): String {
+internal fun buildConversationInlineHtml(
+    text: String,
+    imageUrlResolver: ((String) -> String?)? = null,
+): String {
     fun parseSegment(
         source: String,
         allowAutolinks: Boolean = true,
@@ -438,9 +454,10 @@ internal fun buildConversationInlineHtml(text: String): String {
                         ) {
                             val urlEnd = source.indexOf(')', startIndex = urlStart + 1)
                             if (urlEnd != -1) {
-                                val alt = escapeConversationHtmlAttribute(source.substring(index + 2, labelEnd))
-                                val url = escapeConversationHtmlAttribute(source.substring(urlStart + 1, urlEnd))
-                                append("""<img src="$url" alt="$alt" />""")
+                                val alt = source.substring(index + 2, labelEnd)
+                                val rawUrl = source.substring(urlStart + 1, urlEnd).trim()
+                                val resolvedUrl = if (imageUrlResolver == null) rawUrl else imageUrlResolver(rawUrl)
+                                append(buildConversationImageHtml(resolvedUrl, alt))
                                 index = urlEnd + 1
                                 continue
                             }

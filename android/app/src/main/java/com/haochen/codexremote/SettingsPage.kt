@@ -1,5 +1,6 @@
 package com.haochen.codexremote
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -46,6 +47,26 @@ internal fun MainActivity.SettingsPage() {
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri?.let(::prepareSettingsBackupImport)
+    }
+    var pendingNotificationMode by remember { mutableStateOf<NotificationMode?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val requestedMode = pendingNotificationMode
+        pendingNotificationMode = null
+        if (granted && requestedMode != null) {
+            updateNotificationMode(requestedMode)
+        } else if (!granted) {
+            showNotice("未获得通知权限")
+        }
+    }
+    val enableNotificationMode: (NotificationMode) -> Unit = { mode ->
+        if (hasNotificationPermission()) {
+            updateNotificationMode(mode)
+        } else {
+            pendingNotificationMode = mode
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
     var startupPageExpanded by remember { mutableStateOf(false) }
     var reconnectAttemptsExpanded by remember { mutableStateOf(false) }
@@ -115,6 +136,45 @@ internal fun MainActivity.SettingsPage() {
                     },
                 )
                 BodyText(autoReconnectMaxAttemptsDescription())
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = uiSurface),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, uiBorder),
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SectionTitle("通知")
+                NotificationSwitchRow(
+                    label = "任意消息通知",
+                    description = "收到一条完整的 Codex 回复时通知。",
+                    checked = notificationMode == NotificationMode.AnyMessage,
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            enableNotificationMode(NotificationMode.AnyMessage)
+                        } else {
+                            updateNotificationMode(NotificationMode.Off)
+                        }
+                    },
+                )
+                NotificationSwitchRow(
+                    label = "仅完成通知",
+                    description = "仅在任务完成、中断或失败结束时通知。",
+                    checked = notificationMode == NotificationMode.CompletionOnly,
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            enableNotificationMode(NotificationMode.CompletionOnly)
+                        } else {
+                            updateNotificationMode(NotificationMode.Off)
+                        }
+                    },
+                )
+                BodyText("两个开关互斥。仅在应用进程仍存活且 Bridge 保持连接时生效。")
             }
         }
 
@@ -504,6 +564,40 @@ internal fun MainActivity.SettingsPage() {
                     Text("确认导入")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MainActivity.NotificationSwitchRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        color = uiSurfaceAlt,
+        border = BorderStroke(1.dp, uiBorder),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Label(label)
+                BodyText(description)
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+            )
         }
     }
 }

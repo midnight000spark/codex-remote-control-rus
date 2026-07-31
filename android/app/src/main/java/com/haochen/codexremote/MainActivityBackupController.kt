@@ -22,6 +22,7 @@ private val STRING_BACKUP_KEYS = listOf(
     KEY_CHAT_REASONING_SUMMARY,
     KEY_CHAT_SANDBOX,
     KEY_STARTUP_PAGE,
+    KEY_NOTIFICATION_MODE,
 )
 
 private val BOOLEAN_BACKUP_KEYS = listOf(
@@ -107,6 +108,7 @@ private fun MainActivity.buildSettingsBackupDocument(): JSONObject {
         put("autoReconnect", prefs.getBoolean(KEY_AUTO_RECONNECT, false))
         put("autoReconnectMaxAttempts", prefs.getInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, 0).coerceAtLeast(0))
         putStringIfPresent("startupPage", prefs.getString(KEY_STARTUP_PAGE, null))
+        putStringIfPresent("notificationMode", prefs.getString(KEY_NOTIFICATION_MODE, null))
         put(
             "sessionSyncIntervalSeconds",
             prefs.getInt(KEY_SESSION_SYNC_INTERVAL_SECONDS, DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
@@ -186,6 +188,7 @@ private fun MainActivity.applySettingsBackupDocument(root: JSONObject) {
     editor.putBoolean(KEY_AUTO_RECONNECT, settings.optBoolean("autoReconnect", false))
     editor.putInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, settings.optInt("autoReconnectMaxAttempts", 0).coerceAtLeast(0))
     editor.putStringIfPresent(KEY_STARTUP_PAGE, settings.optStringOrNull("startupPage"))
+    editor.putStringIfPresent(KEY_NOTIFICATION_MODE, settings.optStringOrNull("notificationMode"))
     editor.putInt(
         KEY_SESSION_SYNC_INTERVAL_SECONDS,
         settings.optInt("sessionSyncIntervalSeconds", DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
@@ -285,6 +288,7 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
     bridgeConnectTimeoutSeconds = loadBridgeConnectTimeoutSeconds()
     bridgePingIntervalSeconds = loadBridgePingIntervalSeconds()
+    notificationMode = loadNotificationMode()
     switchLocalSessionCache(findConnectionHistoryById(currentConnectionId))
     currentBridgeUrl = null
     connectionDetail = if (bridgeUrl.isBlank()) "已导入备份，请配置 Bridge URL" else "已导入备份，点击连接即可"

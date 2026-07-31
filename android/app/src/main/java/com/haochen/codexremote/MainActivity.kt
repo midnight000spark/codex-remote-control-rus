@@ -1,6 +1,7 @@
 package com.haochen.codexremote
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
@@ -41,6 +42,7 @@ internal const val KEY_SESSION_SYNC_INTERVAL_SECONDS = "session_sync_interval_se
 internal const val KEY_SESSION_INCREMENTAL_SYNC = "session_incremental_sync"
 internal const val KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS = "bridge_connect_timeout_seconds"
 internal const val KEY_BRIDGE_PING_INTERVAL_SECONDS = "bridge_ping_interval_seconds"
+internal const val KEY_NOTIFICATION_MODE = "notification_mode"
 internal const val MAX_CONNECTION_HISTORY = 8
 internal const val PROJECT_GROUP_DEFAULT_VISIBLE_SESSIONS = 8
 internal const val CODE_BROWSER_FILE_CACHE_SIZE = 24
@@ -150,6 +152,8 @@ class MainActivity : ComponentActivity() {
     internal var sessionIncrementalSyncEnabled by mutableStateOf(true)
     internal var bridgeConnectTimeoutSeconds by mutableStateOf(DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS)
     internal var bridgePingIntervalSeconds by mutableStateOf(DEFAULT_BRIDGE_PING_INTERVAL_SECONDS)
+    internal var notificationMode by mutableStateOf(NotificationMode.Off)
+    internal var activityInForeground = false
     internal var reconnectAttempt = 0
     internal var reconnectScheduled = false
     internal var noticeToast: Toast? = null
@@ -207,8 +211,11 @@ class MainActivity : ComponentActivity() {
         sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
         bridgeConnectTimeoutSeconds = loadBridgeConnectTimeoutSeconds()
         bridgePingIntervalSeconds = loadBridgePingIntervalSeconds()
+        notificationMode = loadNotificationMode()
         currentPage = startupPagePreference
         loadLocalSessionCache()
+        createNotificationChannel()
+        handleNotificationIntent(intent)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = AndroidColor.TRANSPARENT
@@ -225,7 +232,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        activityInForeground = true
         resumeBridgeConnectionIfNeeded()
+    }
+
+    override fun onStop() {
+        activityInForeground = false
+        super.onStop()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
     }
 
     override fun onResume() {

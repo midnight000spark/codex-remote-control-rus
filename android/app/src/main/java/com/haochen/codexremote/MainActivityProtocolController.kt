@@ -177,6 +177,7 @@ internal fun MainActivity.handleEvent(message: JSONObject) {
             "thread/status/changed" -> updateLiveTurnStatusFromThreadStatus(payload.optJSONObject("status"))
             "turn/completed" -> {
                 val completedTurnId = message.optProtocolString("turn_id")
+                maybeNotifyTurnCompleted(payload)
                 approvalDebugLog {
                     "event turn_completed turnId=$completedTurnId activeTurnId=${activeTurnId.orEmpty()} pendingApprovals=${pendingApprovals.size}"
                 }

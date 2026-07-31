@@ -2,6 +2,7 @@ package com.haochen.codexremote
 
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
+import java.util.Locale
 
 internal enum class CodeTextMode {
     Diff,
@@ -211,13 +212,83 @@ internal sealed interface CodeBrowserFileReadState {
     ) : CodeBrowserFileReadState
 }
 
+internal enum class CodeBrowserFileKind {
+    Text,
+    Image,
+    Pdf,
+    Audio,
+    Video,
+    Binary;
+
+    companion object {
+        fun fromWireValue(value: String): CodeBrowserFileKind =
+            when (value.trim().lowercase()) {
+                "text" -> Text
+                "image" -> Image
+                "pdf" -> Pdf
+                "audio" -> Audio
+                "video" -> Video
+                else -> Binary
+            }
+    }
+
+    fun displayLabel(): String =
+        when (this) {
+            Text -> "文本文件"
+            Image -> "图片"
+            Pdf -> "PDF 文档"
+            Audio -> "音频"
+            Video -> "视频"
+            Binary -> "二进制文件"
+        }
+}
+
 internal data class CodeBrowserFileContent(
+    val sessionId: String,
     val requestedPath: String,
     val resolvedPath: String,
+    val displayName: String,
+    val mimeType: String,
+    val kind: CodeBrowserFileKind,
     val content: String,
     val truncated: Boolean,
     val bytes: Int,
+    val size: Long,
+    val downloadable: Boolean,
 )
+
+internal fun isBinaryDiffText(text: String): Boolean {
+    val normalized = text.trim()
+    if (normalized.isBlank()) return false
+    return normalized.contains("GIT binary patch", ignoreCase = true) ||
+        normalized.lineSequence().any { line ->
+            line.trim().startsWith("Binary files ", ignoreCase = true) &&
+                line.trim().endsWith(" differ", ignoreCase = true)
+        }
+}
+
+internal fun isLikelyBinaryFilePath(path: String?): Boolean {
+    val extension = path?.substringAfterLast('.', "")?.trim()?.lowercase().orEmpty()
+    return extension in setOf(
+        "7z", "a", "aac", "apk", "avif", "avi", "bin", "bmp", "class", "db", "dll", "doc", "docx", "dylib",
+        "exe", "flac", "gif", "gz", "heic", "heif", "ico", "jar", "jpeg", "jpg", "m4a", "m4v", "mkv", "mov",
+        "mp3", "mp4", "o", "ogg", "opus", "otf", "pdf", "png", "ppt", "pptx", "rar", "so", "sqlite", "sqlite3",
+        "svg", "tar", "ttf", "wasm", "wav", "webm", "webp", "woff", "woff2", "xls", "xlsx", "zip",
+    )
+}
+
+internal fun formatCodeBrowserFileSize(bytes: Long): String {
+    val safeBytes = bytes.coerceAtLeast(0)
+    if (safeBytes < 1024) return "$safeBytes B"
+    val units = arrayOf("KB", "MB", "GB", "TB")
+    var value = safeBytes.toDouble()
+    var unitIndex = -1
+    while (value >= 1024 && unitIndex < units.lastIndex) {
+        value /= 1024
+        unitIndex += 1
+    }
+    return String.format(Locale.US, "%.1f %s", value, units[unitIndex])
+}
 
 internal data class CodeBrowserRenderedContent(
     val text: AnnotatedString,

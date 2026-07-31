@@ -3,4 +3,7 @@
     <cache-path
         name="conversation_images"
         path="conversation-images/" />
+    <cache-path
+        name="code_browser_files"
+        path="code-browser-files/" />
 </paths>

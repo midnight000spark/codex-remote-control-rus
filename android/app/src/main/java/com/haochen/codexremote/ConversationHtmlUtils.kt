@@ -186,7 +186,9 @@ internal fun isConversationLikelyFilePath(path: String): Boolean {
 }
 
 internal fun normalizeConversationFileBrowserTarget(path: String): ConversationFileTarget? {
-    val decoded = Uri.decode(path.trim())
+    val decoded = Uri.decode(path.trim()).let { value ->
+        if (value.startsWith('<') && value.endsWith('>')) value.substring(1, value.lastIndex).trim() else value
+    }
     val normalized = stripConversationFileLineTextSuffix(stripConversationFileLinkDecoration(decoded))
     if (!isConversationLikelyFilePath(normalized)) return null
     val line = readConversationFileLineReference(decoded) ?: readConversationFileLineSuffix(normalized)

@@ -189,13 +189,30 @@ The response payload contains:
   "session_id": "SESSION_ID",
   "path": "src/index.mjs",
   "resolved_path": "/workspace/src/index.mjs",
+  "name": "index.mjs",
+  "mime_type": "text/javascript",
+  "content_kind": "text",
+  "encoding": "utf-8",
   "content": "...",
   "truncated": false,
-  "bytes": 1234
+  "bytes": 1234,
+  "size": 1234,
+  "downloadable": true
 }
 ```
 
-Relative paths are resolved from the session `cwd`. Absolute paths are read directly.
+`content_kind` is one of `text`, `image`, `pdf`, `audio`, `video`, or `binary`. Only text files include
+preview content in the WebSocket response. `bytes` is the UTF-8 preview size, while `size` is the full
+file size. Relative paths are resolved from the session `cwd`. Absolute paths are read directly.
+
+Authenticated clients can stream the complete file without loading it into the WebSocket payload:
+
+```text
+GET /v1/file?session_id=SESSION_ID&path=src%2Findex.mjs&token=BRIDGE_TOKEN
+```
+
+The response includes the detected `Content-Type`, full `Content-Length`, and an inline
+`Content-Disposition` filename. The `x-bridge-token` request header may be used instead of the query token.
 
 ## Common Events
 

@@ -1,5 +1,6 @@
 package com.haochen.codexremote
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -108,6 +109,16 @@ internal fun MainActivity.RemoteApp() {
             pendingConversationImageSave = null
         } else {
             scope.launch { completePendingConversationImageSave(destination) }
+        }
+    }
+    val codeBrowserFileSaveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val destination = result.data?.data
+        if (result.resultCode != Activity.RESULT_OK || destination == null) {
+            cancelPendingCodeBrowserFileSave()
+        } else {
+            scope.launch { completePendingCodeBrowserFileSave(destination) }
         }
     }
 
@@ -247,6 +258,11 @@ internal fun MainActivity.RemoteApp() {
                         CodeBrowserPage(
                             state = state,
                             modifier = Modifier.fillMaxSize(),
+                            onSaveFile = { content ->
+                                requestCodeBrowserFileSave(content) { intent ->
+                                    codeBrowserFileSaveLauncher.launch(intent)
+                                }
+                            },
                         )
                     }
                 }

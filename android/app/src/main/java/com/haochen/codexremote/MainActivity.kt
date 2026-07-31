@@ -132,6 +132,9 @@ class MainActivity : ComponentActivity() {
     internal var conversationLongPressState by mutableStateOf<ConversationLongPressState?>(null)
     internal var conversationImageViewerState by mutableStateOf<ConversationImageViewerState?>(null)
     internal var pendingConversationImageSave: DownloadedConversationImage? = null
+    internal var pendingCodeBrowserFileSave: PendingCodeBrowserFileSave? = null
+    internal var pendingCodeBrowserApkInstall: PendingCodeBrowserApkInstall? = null
+    internal var codeBrowserFileActionInProgress by mutableStateOf(false)
     internal var disconnectRequested = false
     internal var bootSyncRequested = false
     internal var lastSyncedSeq = 0
@@ -223,6 +226,11 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         resumeBridgeConnectionIfNeeded()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumePendingCodeBrowserApkInstall()
     }
 
     override fun onDestroy() {

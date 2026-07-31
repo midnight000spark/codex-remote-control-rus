@@ -1,8 +1,10 @@
 import http from 'node:http';
+import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createError, createResponse, createEvent, nowIso } from './protocol.mjs';
 import {
@@ -15,6 +17,7 @@ import {
 } from './bridge/common.mjs';
 import {
   MAX_IMAGE_BYTES,
+  describeSessionFile,
   readSessionFile,
   readSessionImage,
   writeSessionImageUpload,
@@ -164,6 +167,10 @@ export class BridgeServer extends EventEmitter {
       await this.#handleImageRequest(req, res, url);
       return;
     }
+    if (url.pathname === '/v1/file') {
+      await this.#handleFileRequest(req, res, url);
+      return;
+    }
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'not_found' }));
   }
@@ -234,6 +241,58 @@ export class BridgeServer extends EventEmitter {
             : 404;
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: error?.code ?? 'image_not_found' }));
+    }
+  }
+
+  async #handleFileRequest(req, res, url) {
+    if (req.method !== 'GET') {
+      res.writeHead(405, { 'content-type': 'application/json', allow: 'GET' });
+      res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+      return;
+    }
+    const providedToken = url.searchParams.get('token') ?? req.headers['x-bridge-token'];
+    if (this.token && providedToken !== this.token) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+      return;
+    }
+    const sessionId = url.searchParams.get('session_id')?.trim() ?? '';
+    const requestedPath = url.searchParams.get('path')?.trim() ?? '';
+    if (!sessionId) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'session_id_required' }));
+      return;
+    }
+    if (!requestedPath) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'path_required' }));
+      return;
+    }
+
+    try {
+      const file = await describeSessionFile(this.store, sessionId, requestedPath);
+      const asciiName = file.name.replace(/[^\x20-\x7e]+/g, '_').replace(/["\\]/g, '_') || 'download';
+      const encodedName = encodeURIComponent(file.name).replace(/['()*]/g, (value) => `%${value.charCodeAt(0).toString(16).toUpperCase()}`);
+      res.writeHead(200, {
+        'content-type': file.mimeType,
+        'content-length': file.size,
+        'content-disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      await pipeline(createReadStream(file.resolvedPath), res);
+    } catch (error) {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      const status = error?.code === 'EACCES'
+        ? 403
+        : error?.code === 'SESSION_NOT_FOUND' || error?.code === 'NOT_FILE' || error?.code === 'ENOENT'
+          ? 404
+          : 500;
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: error?.code ?? 'file_not_found' }));
     }
   }
 
@@ -748,9 +807,15 @@ export class BridgeServer extends EventEmitter {
           session_id: sessionId,
           path: requestedPath,
           resolved_path: result.resolvedPath,
+          name: result.name,
+          mime_type: result.mimeType,
+          content_kind: result.contentKind,
+          encoding: result.encoding,
           content: result.content,
           truncated: result.truncated,
           bytes: result.bytes,
+          size: result.size,
+          downloadable: result.downloadable,
         })));
         return;
       }

@@ -98,9 +98,12 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun MainActivity.CodeBrowserPage(
     state: CodeBrowserState,
+    onSaveFile: (CodeBrowserFileContent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedEntry = state.selectedEntry()
+    val selectedDiffText = selectedEntry?.diff ?: state.fallbackDiff.orEmpty()
+    val selectedPathLooksBinary = isLikelyBinaryFilePath(selectedEntry?.browsePath() ?: state.selectedPath)
     val diffStats = buildDiffStatsLine(diffEntries = state.diffEntries, fallbackDiff = state.fallbackDiff)
     var fileListExpanded by remember(state.conversationItemId) { mutableStateOf(false) }
     val hasDiffContent = state.hasDiffContent()
@@ -111,8 +114,14 @@ internal fun MainActivity.CodeBrowserPage(
             }
             ?: "未选择文件") + state.lineSuffixLabel()
 
-    LaunchedEffect(state.conversationItemId, state.mode, state.selectedPath, state.fileReadState) {
-        if (state.mode == CodeBrowserMode.File && state.canReadSelectedFile() && state.fileReadState is CodeBrowserFileReadState.Idle) {
+    LaunchedEffect(state.conversationItemId, state.mode, state.selectedPath, selectedDiffText, state.fileReadState) {
+        val needsFileMetadata =
+            state.mode == CodeBrowserMode.File ||
+                (
+                    state.mode == CodeBrowserMode.Diff &&
+                        (selectedDiffText.isBlank() || selectedPathLooksBinary || isBinaryDiffText(selectedDiffText))
+                )
+        if (needsFileMetadata && state.canReadSelectedFile() && state.fileReadState is CodeBrowserFileReadState.Idle) {
             loadCodeBrowserFileContent(state)
         }
     }
@@ -216,8 +225,22 @@ internal fun MainActivity.CodeBrowserPage(
             ) {
                 when (state.mode) {
                     CodeBrowserMode.Diff -> {
-                        val diffText = selectedEntry?.diff ?: state.fallbackDiff.orEmpty()
-                        if (diffText.isBlank()) {
+                        val loadedContent = (state.fileReadState as? CodeBrowserFileReadState.Loaded)?.content
+                        val showBinaryDiff =
+                            isBinaryDiffText(selectedDiffText) ||
+                                selectedPathLooksBinary ||
+                                (loadedContent != null && loadedContent.kind != CodeBrowserFileKind.Text)
+                        if (showBinaryDiff) {
+                            CodeBrowserBinaryDiffPane(
+                                state = state,
+                                onSaveFile = onSaveFile,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (selectedDiffText.isBlank() && state.fileReadState is CodeBrowserFileReadState.Loading) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = uiPrimary)
+                            }
+                        } else if (selectedDiffText.isBlank()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 BodyText("这个条目暂时没有可展示的 diff。")
                             }
@@ -238,7 +261,7 @@ internal fun MainActivity.CodeBrowserPage(
                                     )
                                 }
                                 CodeBrowserTextPane(
-                                    text = diffText,
+                                    text = selectedDiffText,
                                     mode = CodeTextMode.Diff,
                                     pathHint = selectedEntry?.browsePath(),
                                     modifier = Modifier
@@ -315,29 +338,12 @@ internal fun MainActivity.CodeBrowserPage(
                             }
 
                             is CodeBrowserFileReadState.Loaded -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 10.dp, vertical = 12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Text(
-                                        text = compactDiffDisplayPath(fileState.content.resolvedPath, state.basePath, maxLength = 96) + state.lineSuffixLabel(),
-                                        color = uiMuted,
-                                        fontSize = 11.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    CodeBrowserTextPane(
-                                        text = fileState.content.content,
-                                        mode = CodeTextMode.File,
-                                        pathHint = fileState.content.resolvedPath,
-                                        scrollToLine = state.selectedLine,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                    )
-                                }
+                                CodeBrowserLoadedFilePane(
+                                    state = state,
+                                    content = fileState.content,
+                                    onSaveFile = onSaveFile,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
                         }
                     }

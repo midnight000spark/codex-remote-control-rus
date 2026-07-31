@@ -3062,6 +3062,11 @@ test('bridge file.read resolves relative paths from session cwd', async () => {
   const workspaceDir = path.join(dir, 'workspace');
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(path.join(workspaceDir, 'src-example.ts'), 'export const answer = 42;\n', 'utf8');
+  await fs.writeFile(path.join(workspaceDir, 'large-chinese.txt'), '你'.repeat(3000), 'utf8');
+  const binaryBytes = Buffer.from([0x00, 0x01, 0x02, 0xff]);
+  await fs.writeFile(path.join(workspaceDir, 'artifact.bin'), binaryBytes);
+  const pngBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  await fs.writeFile(path.join(workspaceDir, 'preview.png'), pngBytes);
 
   const store = new StateStore(path.join(dir, 'state.json'));
   await store.load();
@@ -3110,7 +3115,76 @@ test('bridge file.read resolves relative paths from session cwd', async () => {
   assert.equal(response.ok, true);
   assert.equal(response.payload.content, 'export const answer = 42;\n');
   assert.equal(response.payload.resolved_path, path.join(workspaceDir, 'src-example.ts'));
+  assert.equal(response.payload.name, 'src-example.ts');
+  assert.equal(response.payload.mime_type, 'text/typescript');
+  assert.equal(response.payload.content_kind, 'text');
+  assert.equal(response.payload.encoding, 'utf-8');
   assert.equal(response.payload.truncated, false);
+  assert.equal(response.payload.size, Buffer.byteLength('export const answer = 42;\n'));
+  assert.equal(response.payload.downloadable, true);
+
+  ws.send(JSON.stringify({
+    id: '2',
+    type: 'file.read',
+    payload: {
+      session_id: 'file_read_session',
+      path: 'artifact.bin',
+    },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '2'));
+  const binaryResponse = messages.find((m) => m.type === 'response' && m.id === '2');
+  assert.equal(binaryResponse.ok, true);
+  assert.equal(binaryResponse.payload.content, null);
+  assert.equal(binaryResponse.payload.content_kind, 'binary');
+  assert.equal(binaryResponse.payload.mime_type, 'application/octet-stream');
+  assert.equal(binaryResponse.payload.bytes, 0);
+  assert.equal(binaryResponse.payload.size, binaryBytes.byteLength);
+
+  ws.send(JSON.stringify({
+    id: '3',
+    type: 'file.read',
+    payload: {
+      session_id: 'file_read_session',
+      path: 'large-chinese.txt',
+      max_bytes: 8192,
+    },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '3'));
+  const largeTextResponse = messages.find((m) => m.type === 'response' && m.id === '3');
+  assert.equal(largeTextResponse.ok, true);
+  assert.equal(largeTextResponse.payload.content_kind, 'text');
+  assert.equal(largeTextResponse.payload.truncated, true);
+  assert.equal(largeTextResponse.payload.bytes, 8190);
+  assert.equal(largeTextResponse.payload.content.includes('\ufffd'), false);
+
+  ws.send(JSON.stringify({
+    id: '4',
+    type: 'file.read',
+    payload: {
+      session_id: 'file_read_session',
+      path: 'preview.png',
+    },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '4'));
+  const imageResponse = messages.find((m) => m.type === 'response' && m.id === '4');
+  assert.equal(imageResponse.ok, true);
+  assert.equal(imageResponse.payload.content_kind, 'image');
+  assert.equal(imageResponse.payload.mime_type, 'image/png');
+  assert.equal(imageResponse.payload.content, null);
+  assert.equal(imageResponse.payload.size, pngBytes.byteLength);
+
+  const unauthorizedDownload = await fetch(
+    `http://127.0.0.1:${port}/v1/file?session_id=file_read_session&path=artifact.bin&token=wrong-token`,
+  );
+  assert.equal(unauthorizedDownload.status, 401);
+
+  const download = await fetch(
+    `http://127.0.0.1:${port}/v1/file?session_id=file_read_session&path=artifact.bin&token=test-token`,
+  );
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get('content-type'), 'application/octet-stream');
+  assert.match(download.headers.get('content-disposition'), /artifact\.bin/);
+  assert.deepEqual(Buffer.from(await download.arrayBuffer()), binaryBytes);
 
   ws.close();
   await once(ws, 'close');

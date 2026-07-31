@@ -1,6 +1,8 @@
 package com.haochen.codexremote
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -105,6 +107,12 @@ import kotlinx.coroutines.withContext
 internal fun MainActivity.ChatPage() {
     val activeSession = activeSession()
     val hasConversationItems = conversationItems.isNotEmpty()
+    val scope = rememberCoroutineScope()
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        scope.launch { addComposerImageAttachments(uris) }
+    }
 
     LaunchedEffect(hasConversationItems) {
         if (!hasConversationItems) {
@@ -210,6 +218,8 @@ internal fun MainActivity.ChatPage() {
             }
         }
 
+        ChatComposerImageStrip()
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -217,6 +227,28 @@ internal fun MainActivity.ChatPage() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val hasComposerInput = composerText.isNotBlank() || composerImageAttachments.isNotEmpty()
+            val canSend =
+                connected &&
+                    activeSessionId != null &&
+                    hasComposerInput &&
+                    !composerImageUploadInProgress
+            val canAttach =
+                connected &&
+                    activeSessionId != null &&
+                    !composerImageUploadInProgress &&
+                    composerImageAttachments.size < MAX_COMPOSER_IMAGES
+            val canUseSendButton = canSend || (connected && activeSessionId != null && activeTurnId != null)
+            IconButton(
+                enabled = canAttach,
+                onClick = { imagePicker.launch(arrayOf("image/*")) },
+            ) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_gallery),
+                    contentDescription = "添加图片",
+                    tint = if (canAttach) uiPrimary else uiOffline,
+                )
+            }
             OutlinedTextField(
                 value = composerText,
                 onValueChange = { composerText = it },
@@ -229,7 +261,7 @@ internal fun MainActivity.ChatPage() {
                 shape = RoundedCornerShape(18.dp),
                 placeholder = { Text(if (activeTurnId != null) "追加指令" else "输入消息") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { sendComposerText() }),
+                keyboardActions = KeyboardActions(onSend = { if (canSend) sendComposerText() }),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = uiPrimary,
                     unfocusedBorderColor = uiBorder,
@@ -243,7 +275,7 @@ internal fun MainActivity.ChatPage() {
                 modifier = Modifier
                     .size(46.dp)
                     .background(
-                        if (connected && activeSessionId != null) {
+                        if (canUseSendButton) {
                             if (activeTurnId != null) uiPrimary.copy(alpha = 0.88f) else uiPrimary
                         } else {
                             uiOffline
@@ -251,8 +283,8 @@ internal fun MainActivity.ChatPage() {
                         CircleShape,
                     )
                     .combinedClickable(
-                        enabled = connected && activeSessionId != null,
-                        onClick = { sendComposerText() },
+                        enabled = canUseSendButton,
+                        onClick = { if (canSend) sendComposerText() },
                         onLongClick = {
                             if (activeTurnId != null) {
                                 interruptCurrentTurn()

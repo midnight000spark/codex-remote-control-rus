@@ -1,5 +1,6 @@
 package com.haochen.codexremote
 
+import androidx.compose.ui.graphics.ImageBitmap
 import org.json.JSONObject
 
 internal enum class AppPage {
@@ -28,6 +29,14 @@ internal data class ConversationLongPressState(
 
 internal data class ConversationImageViewerState(
     val source: String,
+)
+
+internal data class ComposerImageAttachment(
+    val id: String,
+    val displayName: String,
+    val mimeType: String,
+    val localPath: String,
+    val preview: ImageBitmap,
 )
 
 internal enum class ChatMode {

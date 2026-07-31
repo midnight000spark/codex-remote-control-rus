@@ -16,6 +16,14 @@ The bridge exposes a small HTTP surface and a token-protected WebSocket protocol
 { "sessions": [] }
 ```
 
+`GET /v1/image?session_id=SESSION_ID&path=PATH&token=TOKEN` returns a session image.
+
+`POST /v1/image?session_id=SESSION_ID&token=TOKEN` uploads an image using its `image/*` content type and returns a bridge-local path suitable for a Codex `localImage` input:
+
+```json
+{ "ok": true, "path": "/absolute/path/to/upload.png", "mimeType": "image/png", "bytes": 1234 }
+```
+
 ## WebSocket Authentication
 
 Clients connect with the bridge token either in the query string or `x-bridge-token` header:

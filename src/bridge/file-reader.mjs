@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const IMAGE_MIME_TYPES = new Map([
   ['.avif', 'image/avif'],
@@ -13,7 +14,19 @@ const IMAGE_MIME_TYPES = new Map([
   ['.webp', 'image/webp'],
 ]);
 
-const MAX_IMAGE_BYTES = 12_000_000;
+const IMAGE_EXTENSIONS = new Map([
+  ['image/avif', '.avif'],
+  ['image/bmp', '.bmp'],
+  ['image/gif', '.gif'],
+  ['image/x-icon', '.ico'],
+  ['image/vnd.microsoft.icon', '.ico'],
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/svg+xml', '.svg'],
+  ['image/webp', '.webp'],
+]);
+
+export const MAX_IMAGE_BYTES = 12_000_000;
 
 export async function readSessionFile(store, sessionId, requestedPath, maxBytes) {
   const resolvedPath = resolveSessionFilePath(store, sessionId, requestedPath);
@@ -64,6 +77,42 @@ export async function readSessionImage(store, sessionId, requestedPath) {
     content,
     mimeType,
     bytes: content.byteLength,
+  };
+}
+
+export async function writeSessionImageUpload(store, sessionId, contentType, content) {
+  const session = sessionId ? store.getSession(sessionId) : null;
+  if (!session) {
+    const error = new Error(`unknown session: ${sessionId}`);
+    error.code = 'SESSION_NOT_FOUND';
+    throw error;
+  }
+  const mimeType = String(contentType ?? '').split(';', 1)[0].trim().toLowerCase();
+  const extension = IMAGE_EXTENSIONS.get(mimeType);
+  if (!extension) {
+    const error = new Error(`unsupported image type: ${mimeType}`);
+    error.code = 'UNSUPPORTED_IMAGE';
+    throw error;
+  }
+  const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content ?? []);
+  if (bytes.byteLength === 0) {
+    const error = new Error('image upload is empty');
+    error.code = 'EMPTY_IMAGE';
+    throw error;
+  }
+  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    const error = new Error(`image exceeds ${MAX_IMAGE_BYTES} bytes`);
+    error.code = 'IMAGE_TOO_LARGE';
+    throw error;
+  }
+  const uploadDir = path.join(path.dirname(store.filePath), 'uploads');
+  await fs.mkdir(uploadDir, { recursive: true });
+  const resolvedPath = path.join(uploadDir, `${randomUUID()}${extension}`);
+  await fs.writeFile(resolvedPath, bytes);
+  return {
+    resolvedPath,
+    mimeType,
+    bytes: bytes.byteLength,
   };
 }
 

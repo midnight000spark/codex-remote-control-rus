@@ -65,6 +65,7 @@ internal fun MainActivity.switchLocalSessionCache(entry: BridgeHistoryEntry?) {
     }
     activeSessionCacheKey = targetCacheKey
     stopSessionSyncLoop()
+    clearComposerImageAttachments()
     clearConversation()
     sessions.clear()
     sessionContentCache.clear()

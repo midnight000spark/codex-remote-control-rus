@@ -3148,6 +3148,27 @@ test('bridge serves authenticated session images', async () => {
   );
   assert.equal(unauthorized.status, 401);
 
+  const uploadResponse = await fetch(
+    `http://127.0.0.1:${port}/v1/image?session_id=image_read_session&token=test-token`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: imageBytes,
+    },
+  );
+  assert.equal(uploadResponse.status, 201);
+  const uploaded = await uploadResponse.json();
+  assert.equal(uploaded.ok, true);
+  assert.equal(uploaded.mimeType, 'image/png');
+  assert.equal(uploaded.bytes, imageBytes.byteLength);
+  assert.deepEqual(await fs.readFile(uploaded.path), imageBytes);
+
+  const uploadedImageResponse = await fetch(
+    `http://127.0.0.1:${port}/v1/image?session_id=image_read_session&path=${encodeURIComponent(uploaded.path)}&token=test-token`,
+  );
+  assert.equal(uploadedImageResponse.status, 200);
+  assert.deepEqual(Buffer.from(await uploadedImageResponse.arrayBuffer()), imageBytes);
+
   const response = await fetch(
     `http://127.0.0.1:${port}/v1/image?session_id=image_read_session&path=pixel.png&token=test-token`,
   );

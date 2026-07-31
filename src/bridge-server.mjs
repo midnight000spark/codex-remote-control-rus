@@ -13,7 +13,13 @@ import {
   summarizeApprovalPayload,
   summarizeClientPayload,
 } from './bridge/common.mjs';
-import { readSessionFile, readSessionImage, clampMaxBytes } from './bridge/file-reader.mjs';
+import {
+  MAX_IMAGE_BYTES,
+  readSessionFile,
+  readSessionImage,
+  writeSessionImageUpload,
+  clampMaxBytes,
+} from './bridge/file-reader.mjs';
 import { SessionContentController } from './bridge/session-content-controller.mjs';
 import {
   defaultSandboxPolicy,
@@ -29,6 +35,28 @@ import {
   summarizeSyncEntries,
   syncItemTypeCounts,
 } from './bridge/sync-log.mjs';
+
+async function readRequestBody(req, maxBytes) {
+  const declaredBytes = Number(req.headers['content-length']);
+  if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+    const error = new Error(`request exceeds ${maxBytes} bytes`);
+    error.code = 'IMAGE_TOO_LARGE';
+    throw error;
+  }
+  const chunks = [];
+  let totalBytes = 0;
+  for await (const chunk of req) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += bytes.byteLength;
+    if (totalBytes > maxBytes) {
+      const error = new Error(`request exceeds ${maxBytes} bytes`);
+      error.code = 'IMAGE_TOO_LARGE';
+      throw error;
+    }
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
 
 export class BridgeServer extends EventEmitter {
   constructor({
@@ -141,8 +169,8 @@ export class BridgeServer extends EventEmitter {
   }
 
   async #handleImageRequest(req, res, url) {
-    if (req.method !== 'GET') {
-      res.writeHead(405, { 'content-type': 'application/json', allow: 'GET' });
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      res.writeHead(405, { 'content-type': 'application/json', allow: 'GET, POST' });
       res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
       return;
     }
@@ -153,14 +181,39 @@ export class BridgeServer extends EventEmitter {
       return;
     }
     const sessionId = url.searchParams.get('session_id')?.trim() ?? '';
-    const requestedPath = url.searchParams.get('path')?.trim() ?? '';
-    if (!sessionId || !requestedPath) {
+    if (!sessionId) {
       res.writeHead(400, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: 'session_id_and_path_required' }));
+      res.end(JSON.stringify({ ok: false, error: 'session_id_required' }));
       return;
     }
 
     try {
+      if (req.method === 'POST') {
+        const content = await readRequestBody(req, MAX_IMAGE_BYTES);
+        const upload = await writeSessionImageUpload(
+          this.store,
+          sessionId,
+          req.headers['content-type'],
+          content,
+        );
+        res.writeHead(201, {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        });
+        res.end(JSON.stringify({
+          ok: true,
+          path: upload.resolvedPath,
+          mimeType: upload.mimeType,
+          bytes: upload.bytes,
+        }));
+        return;
+      }
+      const requestedPath = url.searchParams.get('path')?.trim() ?? '';
+      if (!requestedPath) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'path_required' }));
+        return;
+      }
       const image = await readSessionImage(this.store, sessionId, requestedPath);
       res.writeHead(200, {
         'content-type': image.mimeType,
@@ -174,6 +227,8 @@ export class BridgeServer extends EventEmitter {
         ? 413
         : error?.code === 'UNSUPPORTED_IMAGE'
           ? 415
+          : error?.code === 'EMPTY_IMAGE'
+            ? 400
           : error?.code === 'SESSION_NOT_FOUND'
             ? 404
             : 404;

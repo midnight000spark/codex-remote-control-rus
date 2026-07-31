@@ -1,6 +1,7 @@
 package com.haochen.codexremote
 
 import java.util.Locale
+import org.json.JSONArray
 import org.json.JSONObject
 
 internal fun MainActivity.requestSessionList() {
@@ -108,7 +109,12 @@ internal fun MainActivity.startNewSession(
 
 internal fun MainActivity.sendComposerText() {
         val text = composerText.trim()
-        if (text.isEmpty()) return
+        val attachments = composerImageAttachments.toList()
+        if (text.isEmpty() && attachments.isEmpty()) return
+        if (composerImageUploadInProgress) {
+            showNotice("图片仍在上传")
+            return
+        }
         if (!ensureConnected()) return
         val sessionId = activeSessionId
         if (sessionId.isNullOrBlank()) {
@@ -122,7 +128,7 @@ internal fun MainActivity.sendComposerText() {
         }
 
         if (!turnId.isNullOrBlank()) {
-            steerCurrentTurn(sessionId, turnId, text)
+            steerCurrentTurn(sessionId, turnId, text, attachments)
             return
         }
         if (selectedChatMode == ChatMode.Goal && activeThreadGoal == null) {
@@ -136,6 +142,7 @@ internal fun MainActivity.sendComposerText() {
         val payload = JSONObject().apply {
             put("session_id", sessionId)
             put("text", text)
+            put("input", buildComposerTurnInput(text, attachments))
             if (model.isNotBlank()) {
                 put("model", model)
             }
@@ -159,13 +166,20 @@ internal fun MainActivity.sendComposerText() {
 
         startSessionSyncLoop()
         composerText = ""
+        clearComposerImageAttachments()
     }
 
-internal fun MainActivity.steerCurrentTurn(sessionId: String, turnId: String, text: String) {
+internal fun MainActivity.steerCurrentTurn(
+        sessionId: String,
+        turnId: String,
+        text: String,
+        attachments: List<ComposerImageAttachment>,
+    ) {
         val payload = JSONObject().apply {
             put("session_id", sessionId)
             put("turn_id", turnId)
             put("text", text)
+            put("input", buildComposerTurnInput(text, attachments))
         }
 
         if (!sendRequest("turn.steer", payload) { response ->
@@ -179,7 +193,32 @@ internal fun MainActivity.steerCurrentTurn(sessionId: String, turnId: String, te
 
         startSessionSyncLoop()
         composerText = ""
+        clearComposerImageAttachments()
     }
+
+private fun buildComposerTurnInput(
+        text: String,
+        attachments: List<ComposerImageAttachment>,
+    ): JSONArray =
+        JSONArray().apply {
+            text.trim().takeIf { it.isNotBlank() }?.let { normalizedText ->
+                put(
+                    JSONObject().apply {
+                        put("type", "text")
+                        put("text", normalizedText)
+                        put("text_elements", JSONArray())
+                    },
+                )
+            }
+            attachments.forEach { attachment ->
+                put(
+                    JSONObject().apply {
+                        put("type", "localImage")
+                        put("path", attachment.localPath)
+                    },
+                )
+            }
+        }
 
 internal fun MainActivity.switchActiveSessionToFullAccess() {
         val session = activeSession() ?: return
@@ -388,6 +427,9 @@ internal fun MainActivity.removePendingApproval(requestId: String) {
 
 internal fun MainActivity.selectSession(sessionId: String, syncHistory: Boolean) {
         if (sessionId.isBlank()) return
+        if (activeSessionId != null && activeSessionId != sessionId) {
+            clearComposerImageAttachments()
+        }
         val keepCurrentConversation = activeSessionId == sessionId && conversationItems.isNotEmpty()
         if (!keepCurrentConversation) {
             clearConversation()

@@ -42,3 +42,23 @@ internal fun formatBeijingDateTimeLabel(
             .format(DateTimeFormatter.ofPattern(pattern))
     }.getOrDefault(fallback)
 }
+
+internal fun JSONObject.optTimestampMillis(key: String): Long? {
+    val value = opt(key)
+    if (value == null || value == JSONObject.NULL) return null
+    val numeric = when (value) {
+        is Number -> value.toDouble()
+        is String -> value.trim().toDoubleOrNull()
+        else -> null
+    }
+    if (numeric != null && numeric.isFinite() && numeric > 0) {
+        return if (numeric < 100_000_000_000L) {
+            (numeric * 1000).toLong()
+        } else {
+            numeric.toLong()
+        }
+    }
+    return (value as? String)?.trim()?.takeIf { it.isNotBlank() }?.let { text ->
+        runCatching { Instant.parse(text).toEpochMilli() }.getOrNull()
+    }
+}

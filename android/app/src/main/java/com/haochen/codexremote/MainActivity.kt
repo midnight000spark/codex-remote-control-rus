@@ -42,6 +42,7 @@ internal const val KEY_SESSION_SYNC_INTERVAL_SECONDS = "session_sync_interval_se
 internal const val KEY_SESSION_INCREMENTAL_SYNC = "session_incremental_sync"
 internal const val KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS = "bridge_connect_timeout_seconds"
 internal const val KEY_BRIDGE_PING_INTERVAL_SECONDS = "bridge_ping_interval_seconds"
+internal const val KEY_SHOW_MESSAGE_TIMESTAMPS = "show_message_timestamps"
 internal const val KEY_NOTIFICATION_MODE = "notification_mode"
 internal const val MAX_CONNECTION_HISTORY = 8
 internal const val PROJECT_GROUP_DEFAULT_VISIBLE_SESSIONS = 8
@@ -152,6 +153,7 @@ class MainActivity : ComponentActivity() {
     internal var sessionIncrementalSyncEnabled by mutableStateOf(true)
     internal var bridgeConnectTimeoutSeconds by mutableStateOf(DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS)
     internal var bridgePingIntervalSeconds by mutableStateOf(DEFAULT_BRIDGE_PING_INTERVAL_SECONDS)
+    internal var showMessageTimestamps by mutableStateOf(false)
     internal var notificationMode by mutableStateOf(NotificationMode.Off)
     internal var activityInForeground = false
     internal var reconnectAttempt = 0
@@ -211,6 +213,7 @@ class MainActivity : ComponentActivity() {
         sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
         bridgeConnectTimeoutSeconds = loadBridgeConnectTimeoutSeconds()
         bridgePingIntervalSeconds = loadBridgePingIntervalSeconds()
+        showMessageTimestamps = loadShowMessageTimestamps()
         notificationMode = loadNotificationMode()
         currentPage = startupPagePreference
         loadLocalSessionCache()

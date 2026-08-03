@@ -148,6 +148,7 @@ internal fun MainActivity.ChatPage() {
                     sessionId = activeSessionId,
                     imageBridgeUrl = currentBridgeUrl ?: bridgeUrl,
                     displayBasePath = activeSession?.cwd,
+                    showMessageTimestamps = showMessageTimestamps,
                     restoreScrollY = chatRestoreScrollY,
                     scrollCommand = chatScrollCommand,
                     onScrollRestored = {

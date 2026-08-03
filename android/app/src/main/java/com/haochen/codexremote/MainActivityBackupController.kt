@@ -28,6 +28,7 @@ private val STRING_BACKUP_KEYS = listOf(
 private val BOOLEAN_BACKUP_KEYS = listOf(
     KEY_AUTO_RECONNECT,
     KEY_SESSION_INCREMENTAL_SYNC,
+    KEY_SHOW_MESSAGE_TIMESTAMPS,
 )
 
 private val INT_BACKUP_KEYS = listOf(
@@ -114,6 +115,7 @@ private fun MainActivity.buildSettingsBackupDocument(): JSONObject {
             prefs.getInt(KEY_SESSION_SYNC_INTERVAL_SECONDS, DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
         )
         put("sessionIncrementalSync", prefs.getBoolean(KEY_SESSION_INCREMENTAL_SYNC, true))
+        put("showMessageTimestamps", prefs.getBoolean(KEY_SHOW_MESSAGE_TIMESTAMPS, false))
         put(
             "bridgeConnectTimeoutSeconds",
             prefs.getInt(KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS, DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS).coerceIn(1, 30),
@@ -194,6 +196,7 @@ private fun MainActivity.applySettingsBackupDocument(root: JSONObject) {
         settings.optInt("sessionSyncIntervalSeconds", DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
     )
     editor.putBoolean(KEY_SESSION_INCREMENTAL_SYNC, settings.optBoolean("sessionIncrementalSync", true))
+    editor.putBoolean(KEY_SHOW_MESSAGE_TIMESTAMPS, settings.optBoolean("showMessageTimestamps", false))
     editor.putInt(
         KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS,
         settings.optInt("bridgeConnectTimeoutSeconds", DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS).coerceIn(1, 30),
@@ -286,6 +289,7 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     startupPagePreference = loadStartupPagePreference()
     sessionSyncIntervalSeconds = loadSessionSyncIntervalSeconds()
     sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
+    showMessageTimestamps = loadShowMessageTimestamps()
     bridgeConnectTimeoutSeconds = loadBridgeConnectTimeoutSeconds()
     bridgePingIntervalSeconds = loadBridgePingIntervalSeconds()
     notificationMode = loadNotificationMode()

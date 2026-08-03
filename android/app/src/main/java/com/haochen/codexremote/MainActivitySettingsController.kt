@@ -175,6 +175,15 @@ internal fun MainActivity.updateSessionIncrementalSyncEnabled(enabled: Boolean) 
     }
 }
 
+internal fun MainActivity.loadShowMessageTimestamps(): Boolean {
+    return prefs.getBoolean(KEY_SHOW_MESSAGE_TIMESTAMPS, false)
+}
+
+internal fun MainActivity.updateShowMessageTimestamps(enabled: Boolean) {
+    showMessageTimestamps = enabled
+    prefs.edit().putBoolean(KEY_SHOW_MESSAGE_TIMESTAMPS, enabled).apply()
+}
+
 internal fun MainActivity.loadStartupPagePreference(): AppPage {
     return appPageFromPreference(prefs.getString(KEY_STARTUP_PAGE, null))
 }

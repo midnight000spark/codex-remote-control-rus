@@ -45,6 +45,7 @@ internal fun ConversationHistoryWebView(
     sessionId: String?,
     imageBridgeUrl: String?,
     displayBasePath: String?,
+    showMessageTimestamps: Boolean,
     restoreScrollY: Int? = null,
     scrollCommand: ConversationScrollCommand? = null,
     onScrollRestored: () -> Unit = {},
@@ -61,7 +62,13 @@ internal fun ConversationHistoryWebView(
     val uriHandler = LocalUriHandler.current
     val imageContext = ConversationImageRenderContext(sessionId = sessionId, bridgeUrl = imageBridgeUrl)
     val renderCache = remember(sessionId) { mutableMapOf<String, ConversationRenderCacheEntry>() }
-    val renderedItems = buildCachedConversationRenderedItems(items, displayBasePath, imageContext, renderCache)
+    val renderedItems = buildCachedConversationRenderedItems(
+        items,
+        displayBasePath,
+        imageContext,
+        showMessageTimestamps,
+        renderCache,
+    )
     val renderSnapshot = ConversationRenderSnapshot.from(renderedItems)
     val pendingScrollModes = remember(sessionId) { mutableMapOf<String, ConversationScrollMode>() }
     val pendingRenderSnapshots = remember(sessionId) { mutableMapOf<String, ConversationRenderSnapshot>() }
@@ -243,17 +250,18 @@ private fun buildCachedConversationRenderedItems(
     items: List<ConversationItem>,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext,
+    showMessageTimestamps: Boolean,
     cache: MutableMap<String, ConversationRenderCacheEntry>,
 ): List<ConversationRenderedItem> {
     val liveIds = items.mapTo(mutableSetOf()) { it.id }
     cache.keys.removeAll { it !in liveIds }
     return items.map { item ->
-        val signature = buildConversationRenderSignature(item, displayBasePath, imageContext)
+        val signature = buildConversationRenderSignature(item, displayBasePath, imageContext, showMessageTimestamps)
         val cached = cache[item.id]
         if (cached != null && cached.signature == signature) {
             cached.renderedItem
         } else {
-            val renderedItem = buildConversationRenderedItem(item, displayBasePath, imageContext)
+            val renderedItem = buildConversationRenderedItem(item, displayBasePath, imageContext, showMessageTimestamps)
             cache[item.id] = ConversationRenderCacheEntry(
                 signature = signature,
                 renderedItem = renderedItem,

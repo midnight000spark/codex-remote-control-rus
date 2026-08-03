@@ -3,6 +3,43 @@ import { createEvent } from '../protocol.mjs';
 import { clone, firstNonEmptyString, safeJsonLineParse } from './common.mjs';
 import { normalizeTokenUsageSnapshot } from './session-normalization.mjs';
 
+const rolloutMessageTimestampCache = new Map();
+
+export async function readRolloutMessageTimestamps(filePath) {
+  const stat = await fs.stat(filePath);
+  const cacheKey = `${stat.size}:${stat.mtimeMs}`;
+  const cached = rolloutMessageTimestampCache.get(filePath);
+  if (cached?.cacheKey === cacheKey) {
+    return cached.messages;
+  }
+
+  const raw = await fs.readFile(filePath, 'utf8');
+  const messages = [];
+  let currentTurnId = null;
+  for (const line of raw.split('\n')) {
+    const record = safeJsonLineParse(line.trim());
+    if (!record || record.type !== 'event_msg') continue;
+    const payload = record.payload ?? {};
+    if (payload.type === 'task_started') {
+      currentTurnId = payload.turn_id ?? currentTurnId;
+    } else if (payload.type === 'task_complete') {
+      currentTurnId = null;
+    } else if (payload.type === 'user_message' || payload.type === 'agent_message') {
+      const text = String(payload.message ?? '').replace(/\r\n/g, '\n').trim();
+      if (currentTurnId && text && record.timestamp) {
+        messages.push({
+          turnId: currentTurnId,
+          itemType: payload.type === 'user_message' ? 'userMessage' : 'agentMessage',
+          text,
+          at: record.timestamp,
+        });
+      }
+    }
+  }
+  rolloutMessageTimestampCache.set(filePath, { cacheKey, messages });
+  return messages;
+}
+
 export async function extractSessionMetadataFromRollout(session) {
   const rolloutPath = session?.thread?.path;
   if (typeof rolloutPath !== 'string' || !rolloutPath.trim()) {
@@ -190,6 +227,7 @@ export async function buildContentEntriesFromRolloutFile(sessionId, filePath, th
           session_id: sessionId,
           thread_id: threadId,
           turn_id: currentTurnId,
+          ...(record.timestamp ? { at: record.timestamp } : {}),
           item: {
             type: 'userMessage',
             id: currentTurnId ? `rollout_${currentTurnId}_user` : `rollout_${sessionId}_user`,
@@ -206,6 +244,7 @@ export async function buildContentEntriesFromRolloutFile(sessionId, filePath, th
           session_id: sessionId,
           thread_id: threadId,
           turn_id: currentTurnId,
+          ...(record.timestamp ? { at: record.timestamp } : {}),
           item: {
             type: 'agentMessage',
             id: currentTurnId ? `rollout_${currentTurnId}_${String(++currentItemSeq).padStart(4, '0')}` : `rollout_${sessionId}_${String(++currentItemSeq).padStart(4, '0')}`,

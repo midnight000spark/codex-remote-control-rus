@@ -41,6 +41,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
         val itemType = item.optString("type", "").trim()
         val turnId = entry.optProtocolString("turn_id")
         val itemId = item.optProtocolString("id")
+        val timestampMillis = entry.optTimestampMillis("at")
         return when (itemType) {
             "userMessage" -> {
                 val text = extractThreadItemText(item)
@@ -55,6 +56,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                     textColor = AndroidColor.WHITE,
                     turnKey = turnId.takeIf { it.isNotBlank() },
                     sourceItemId = itemId.takeIf { it.isNotBlank() },
+                    timestampMillis = timestampMillis,
                 )
             }
             "agentMessage" -> {
@@ -68,6 +70,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                     textColor = 0xFF183326.toInt(),
                     turnKey = turnId.ifBlank { "assistant" },
                     assistantKey = itemId.takeIf { it.isNotBlank() },
+                    timestampMillis = timestampMillis,
                 )
             }
             "imageView", "imageGeneration" -> {
@@ -82,6 +85,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                     textColor = 0xFF183326.toInt(),
                     turnKey = turnId.takeIf { it.isNotBlank() },
                     sourceItemId = itemId.takeIf { it.isNotBlank() },
+                    timestampMillis = timestampMillis,
                 )
             }
             "fileChange" -> {

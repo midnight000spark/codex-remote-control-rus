@@ -4,7 +4,10 @@ internal fun buildConversationPageHtml(
     items: List<ConversationItem>,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
-): String = buildConversationRenderedPageHtml(buildConversationRenderedItems(items, displayBasePath, imageContext))
+    showMessageTimestamps: Boolean = false,
+): String = buildConversationRenderedPageHtml(
+    buildConversationRenderedItems(items, displayBasePath, imageContext, showMessageTimestamps),
+)
 
 internal fun buildConversationRenderedPageHtml(
     renderedItems: List<ConversationRenderedItem>,
@@ -59,13 +62,15 @@ internal fun buildConversationRenderedItems(
     items: List<ConversationItem>,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
+    showMessageTimestamps: Boolean = false,
 ): List<ConversationRenderedItem> =
-    items.map { item -> buildConversationRenderedItem(item, displayBasePath, imageContext) }
+    items.map { item -> buildConversationRenderedItem(item, displayBasePath, imageContext, showMessageTimestamps) }
 
 internal fun buildConversationRenderedItem(
     item: ConversationItem,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
+    showMessageTimestamps: Boolean = false,
 ): ConversationRenderedItem {
     val type =
         when (item) {
@@ -75,7 +80,7 @@ internal fun buildConversationRenderedItem(
         }
     val contentHtml =
         when (item) {
-            is ConversationItem.Bubble -> item.toHtml(imageContext)
+            is ConversationItem.Bubble -> item.toHtml(imageContext, showMessageTimestamps)
             is ConversationItem.SystemNote -> item.toHtml()
             is ConversationItem.FileChange -> item.toHtml(displayBasePath)
         }
@@ -90,6 +95,7 @@ internal fun buildConversationRenderSignature(
     item: ConversationItem,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
+    showMessageTimestamps: Boolean = false,
 ): String =
     when (item) {
         is ConversationItem.Bubble ->
@@ -108,6 +114,8 @@ internal fun buildConversationRenderSignature(
                 item.turnKey.orEmpty(),
                 item.assistantKey.orEmpty(),
                 item.sourceItemId.orEmpty(),
+                item.timestampMillis?.toString().orEmpty(),
+                showMessageTimestamps.toString(),
             ).joinToString("\u001F")
 
         is ConversationItem.SystemNote ->
@@ -139,8 +147,9 @@ internal fun buildConversationItemsHtml(
     items: List<ConversationItem>,
     displayBasePath: String?,
     imageContext: ConversationImageRenderContext = ConversationImageRenderContext(null, null),
+    showMessageTimestamps: Boolean = false,
 ): String =
-    buildConversationRenderedItems(items, displayBasePath, imageContext).joinToString("") { it.html }
+    buildConversationRenderedItems(items, displayBasePath, imageContext, showMessageTimestamps).joinToString("") { it.html }
 
 internal fun wrapConversationRenderedItem(
     id: String,
@@ -157,7 +166,10 @@ internal fun wrapConversationRenderedItem(
     </div>
     """.trimIndent()
 
-internal fun ConversationItem.Bubble.toHtml(imageContext: ConversationImageRenderContext): String {
+internal fun ConversationItem.Bubble.toHtml(
+    imageContext: ConversationImageRenderContext,
+    showMessageTimestamps: Boolean,
+): String {
     val textHtml =
         if (text.isBlank()) {
             ""
@@ -170,19 +182,33 @@ internal fun ConversationItem.Bubble.toHtml(imageContext: ConversationImageRende
         }
     val imagesHtml = buildConversationImagesHtml(images, imageContext)
     val contentHtml = textHtml + imagesHtml
+    val timestampHtml = if (showMessageTimestamps) buildConversationTimestampHtml(timestampMillis) else ""
     return if (right) {
         """
         <div class="cr-message user">
-            <div class="cr-bubble user">$contentHtml</div>
+            <div class="cr-message-stack user">
+                <div class="cr-bubble user">$contentHtml</div>
+                $timestampHtml
+            </div>
         </div>
         """.trimIndent()
     } else {
         """
         <div class="cr-message assistant">
-            <div class="cr-bubble assistant">$contentHtml</div>
+            <div class="cr-message-stack assistant">
+                <div class="cr-bubble assistant">$contentHtml</div>
+                $timestampHtml
+            </div>
         </div>
         """.trimIndent()
     }
+}
+
+private fun buildConversationTimestampHtml(timestampMillis: Long?): String {
+    val timestamp = timestampMillis?.takeIf { it > 0L } ?: return ""
+    val label = formatBeijingDateTimeLabel(timestamp, fallback = "")
+    if (label.isBlank()) return ""
+    return """<div class="cr-message-time">${escapeConversationHtml(label)}</div>"""
 }
 
 internal fun buildConversationImagesHtml(

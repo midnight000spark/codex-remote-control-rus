@@ -218,6 +218,7 @@ internal fun MainActivity.handleTurnInput(message: JSONObject, payload: JSONObje
             itemKey,
             text,
             extractConversationUserInputImages(payload.optJSONArray("input")),
+            message.optTimestampMillis("at"),
         )
     }
 

@@ -97,6 +97,45 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                SectionTitle("对话")
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                    color = uiSurfaceAlt,
+                    border = BorderStroke(1.dp, uiBorder),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Label("显示消息时间")
+                            BodyText("在用户和助手消息下方显示发送时间。")
+                        }
+                        Switch(
+                            checked = showMessageTimestamps,
+                            onCheckedChange = { updateShowMessageTimestamps(it) },
+                        )
+                    }
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = uiSurface),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, uiBorder),
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 SectionTitle("自动重连")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),

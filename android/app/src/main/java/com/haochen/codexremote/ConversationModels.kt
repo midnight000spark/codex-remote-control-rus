@@ -13,6 +13,7 @@ sealed interface ConversationItem {
         val turnKey: String? = null,
         val assistantKey: String? = null,
         val sourceItemId: String? = null,
+        val timestampMillis: Long? = null,
     ) : ConversationItem
 
     data class SystemNote(

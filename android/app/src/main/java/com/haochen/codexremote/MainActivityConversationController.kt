@@ -109,6 +109,7 @@ internal fun MainActivity.appendUserInputBubble(
         itemKey: String,
         text: String,
         images: List<ConversationImage> = emptyList(),
+        timestampMillis: Long? = null,
     ) {
         val normalizedText = text.trim()
         if (normalizedText.isBlank() && images.isEmpty()) return
@@ -129,7 +130,11 @@ internal fun MainActivity.appendUserInputBubble(
             if (existing.turnKey.isNullOrBlank() && normalizedTurnKey.isNotBlank()) {
                 replaceConversationItem(existing.id) { item ->
                     if (item is ConversationItem.Bubble) {
-                        item.copy(turnKey = normalizedTurnKey, sourceItemId = sourceItemId ?: item.sourceItemId)
+                        item.copy(
+                            turnKey = normalizedTurnKey,
+                            sourceItemId = sourceItemId ?: item.sourceItemId,
+                            timestampMillis = timestampMillis ?: item.timestampMillis,
+                        )
                     } else {
                         item
                     }
@@ -147,6 +152,7 @@ internal fun MainActivity.appendUserInputBubble(
                 textColor = AndroidColor.WHITE,
                 turnKey = normalizedTurnKey,
                 sourceItemId = sourceItemId,
+                timestampMillis = timestampMillis,
             ),
         )
     }

@@ -153,6 +153,29 @@ internal fun buildConversationCss(): String =
         justify-content: flex-start;
     }
 
+    .cr-message-stack {
+        display: flex;
+        flex-direction: column;
+        max-width: 320px;
+        gap: 4px;
+    }
+
+    .cr-message-stack.user {
+        align-items: flex-end;
+    }
+
+    .cr-message-stack.assistant {
+        align-items: flex-start;
+    }
+
+    .cr-message-time {
+        color: #789080 !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+        padding: 0 4px;
+        white-space: nowrap;
+    }
+
     .cr-bubble {
         box-sizing: border-box;
         max-width: 320px;

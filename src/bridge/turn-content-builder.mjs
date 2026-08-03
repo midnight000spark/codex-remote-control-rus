@@ -8,6 +8,7 @@ import {
 } from './common.mjs';
 import { SYNC_LOG_EVENT_LIMIT, summarizeSyncEntries, syncItemTypeCounts } from './sync-log.mjs';
 import { eventSignature, mergeInitialSessionEvents, pruneHydratedEvents } from './session-event-signature.mjs';
+import { readRolloutMessageTimestamps } from './rollout-history.mjs';
 
 const CONVERSATION_ITEM_TYPES = new Set([
   'userMessage',
@@ -19,6 +20,19 @@ const CONVERSATION_ITEM_TYPES = new Set([
 
 function isConversationItem(item) {
   return CONVERSATION_ITEM_TYPES.has(item?.type);
+}
+
+function normalizeEntryTimestamp(value) {
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  const millis = Number.isFinite(numeric)
+    ? (numeric < 100_000_000_000 ? numeric * 1000 : numeric)
+    : Date.parse(String(value));
+  return Number.isFinite(millis) && millis > 0 ? new Date(millis).toISOString() : null;
+}
+
+function rolloutTimestampKey(turnId, itemType, text) {
+  return JSON.stringify([turnId ?? '', itemType ?? '', String(text ?? '').replace(/\r\n/g, '\n').trim()]);
 }
 
 export class TurnContentBuilder {
@@ -66,11 +80,13 @@ export class TurnContentBuilder {
         });
         if (seenItemIds.has(itemId)) continue;
         seenItemIds.add(itemId);
+        const at = normalizeEntryTimestamp(event.at);
         entries.push({
           type: 'item',
           session_id: sessionId,
           thread_id: session.thread_id ?? sessionId,
           turn_id: event.turn_id ?? null,
+          ...(at ? { at } : {}),
           item: {
             type: 'userMessage',
             id: itemId,
@@ -88,11 +104,13 @@ export class TurnContentBuilder {
       const itemId = item.id ?? `stored_item_${event.seq ?? entries.length}`;
       if (seenItemIds.has(itemId)) continue;
       seenItemIds.add(itemId);
+      const at = normalizeEntryTimestamp(event.at);
       entries.push({
         type: 'item',
         session_id: sessionId,
         thread_id: session.thread_id ?? sessionId,
         turn_id: event.turn_id ?? null,
+        ...(at ? { at } : {}),
         item: {
           ...item,
           id: itemId,
@@ -135,11 +153,13 @@ export class TurnContentBuilder {
       });
       if (existingInputSignatures.has(signature) || existingItemIds.has(itemId)) continue;
 
+      const at = normalizeEntryTimestamp(event.at);
       const entry = {
         type: 'item',
         session_id: sessionId,
         thread_id: session.thread_id ?? sessionId,
         turn_id: event.turn_id ?? null,
+        ...(at ? { at } : {}),
         item: {
           type: 'userMessage',
           id: itemId,
@@ -165,6 +185,69 @@ export class TurnContentBuilder {
       if (entries[index]?.turn_id === turnId) return index;
     }
     return -1;
+  }
+
+  #buildStoredItemTimestampIndex(sessionId) {
+    const session = this.store.getSession(sessionId);
+    const timestamps = new Map();
+    for (const event of session?.events ?? []) {
+      let itemId = null;
+      if (event?.event === 'turn/input') {
+        itemId = getTurnInputItemId({
+          payload: event?.payload,
+          requestId: event?.request_id ?? '',
+          turnId: event?.turn_id ?? '',
+          sessionId,
+          seq: event?.seq ?? 0,
+        });
+      } else if (event?.event === 'item/completed') {
+        itemId = event?.payload?.item?.id ?? null;
+      }
+      const timestamp = normalizeEntryTimestamp(event?.at);
+      if (itemId && timestamp && !timestamps.has(itemId)) {
+        timestamps.set(itemId, timestamp);
+      }
+    }
+    return timestamps;
+  }
+
+  async #buildRolloutTimestampQueues(sessionId) {
+    const filePath = this.store.getSession(sessionId)?.thread?.path;
+    if (!filePath) return new Map();
+    try {
+      const queues = new Map();
+      for (const message of await readRolloutMessageTimestamps(filePath)) {
+        const key = rolloutTimestampKey(message.turnId, message.itemType, message.text);
+        const queue = queues.get(key) ?? [];
+        queue.push(message.at);
+        queues.set(key, queue);
+      }
+      return queues;
+    } catch {
+      return new Map();
+    }
+  }
+
+  #takeRolloutItemTimestamp(queues, turnId, item) {
+    const text = item?.type === 'userMessage'
+      ? extractUserMessageText(normalizeUserMessageContent(item?.content))
+      : item?.type === 'agentMessage' ? item?.text ?? '' : '';
+    if (!text) return null;
+    const queue = queues.get(rolloutTimestampKey(turnId, item.type, text));
+    return queue?.shift() ?? null;
+  }
+
+  #resolveItemTimestamp(storedTimestamps, itemId, turn, item, rolloutTimestamp = null) {
+    const itemTimestamp = normalizeEntryTimestamp(item?.createdAt ?? item?.timestamp ?? item?.completedAt);
+    if (itemTimestamp) return itemTimestamp;
+    const exactRolloutTimestamp = normalizeEntryTimestamp(rolloutTimestamp);
+    if (exactRolloutTimestamp) return exactRolloutTimestamp;
+    const storedTimestamp = itemId ? storedTimestamps.get(itemId) : null;
+    if (storedTimestamp) return storedTimestamp;
+    const turnTimestamp = item?.type === 'userMessage'
+      ? turn?.startedAt ?? turn?.createdAt
+      : turn?.completedAt ?? turn?.startedAt ?? turn?.createdAt;
+    return normalizeEntryTimestamp(turnTimestamp);
   }
 
   async buildEventsFromThread(sessionId, thread) {
@@ -249,6 +332,8 @@ export class TurnContentBuilder {
     const turns = this.#sortTurnsForRendering(Array.isArray(rawThread?.turns) ? rawThread.turns : []);
     const threadId = rawThread?.id ?? rawThread?.threadId ?? rawThread?.sessionId ?? sessionId;
     const storedUserInputItemIds = this.#buildStoredTurnInputItemIdIndex(sessionId);
+    const storedItemTimestamps = this.#buildStoredItemTimestampIndex(sessionId);
+    const rolloutTimestampQueues = await this.#buildRolloutTimestampQueues(sessionId);
     const entries = [];
 
     for (const turn of turns) {
@@ -271,11 +356,14 @@ export class TurnContentBuilder {
         const itemId = item.type === 'userMessage'
           ? storedUserInputItemId ?? item.id ?? fallbackItemId
           : item.id ?? fallbackItemId;
+        const rolloutTimestamp = this.#takeRolloutItemTimestamp(rolloutTimestampQueues, turn.id, item);
+        const at = this.#resolveItemTimestamp(storedItemTimestamps, itemId, turn, item, rolloutTimestamp);
         entries.push({
           type: 'item',
           session_id: sessionId,
           thread_id: threadId,
           turn_id: turn.id,
+          ...(at ? { at } : {}),
           item: {
             ...item,
             id: itemId,
@@ -331,6 +419,8 @@ export class TurnContentBuilder {
       })),
     });
     const storedUserInputItemIds = this.#buildStoredTurnInputItemIdIndex(sessionId);
+    const storedItemTimestamps = this.#buildStoredItemTimestampIndex(sessionId);
+    const rolloutTimestampQueues = await this.#buildRolloutTimestampQueues(sessionId);
     const entries = [];
     const changedTurnIds = [];
     const missingFinalAgentTurnIds = [];
@@ -351,6 +441,8 @@ export class TurnContentBuilder {
       const requiresAuthoritativeItems = this.turnRequiresAuthoritativeItems(sessionId, turnId);
       const turnEntries = await this.#buildContentEntriesFromTurn(sessionId, threadId, turn, storedUserInputItemIds, {
         requireAuthoritativeItems: requiresAuthoritativeItems,
+        storedItemTimestamps,
+        rolloutTimestampQueues,
       });
       if (turnEntries == null) {
         this.#logSync('session.sync.turn.entries_null', {
@@ -447,11 +539,19 @@ export class TurnContentBuilder {
       const itemId = item.type === 'userMessage'
         ? storedUserInputItemId ?? item.id ?? fallbackItemId
         : item.id ?? fallbackItemId;
+      const at = this.#resolveItemTimestamp(
+        options.storedItemTimestamps ?? this.#buildStoredItemTimestampIndex(sessionId),
+        itemId,
+        turn,
+        item,
+        this.#takeRolloutItemTimestamp(options.rolloutTimestampQueues ?? new Map(), turnId, item),
+      );
       entries.push({
         type: 'item',
         session_id: sessionId,
         thread_id: threadId,
         turn_id: turnId,
+        ...(at ? { at } : {}),
         item: {
           ...item,
           id: itemId,

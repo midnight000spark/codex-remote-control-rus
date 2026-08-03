@@ -2344,6 +2344,18 @@ test('session sync merges hydrated items for a turn even when stored events alre
 
 test('session content returns final thread items and pending approvals in stable order', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-content-test-'));
+  const rolloutPath = path.join(dir, 'rollout.jsonl');
+  await fs.writeFile(rolloutPath, [
+    JSON.stringify({ timestamp: '2026-01-01T00:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'content_turn_0' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: '更早' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:00:02.000Z', type: 'event_msg', payload: { type: 'agent_message', message: '更早回复' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:00:03.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'content_turn_0' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:01:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'content_turn_1' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:01:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: '你好' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:01:02.000Z', type: 'event_msg', payload: { type: 'agent_message', message: '已收到' } }),
+    JSON.stringify({ timestamp: '2026-01-01T00:01:03.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'content_turn_1' } }),
+    '',
+  ].join('\n'), 'utf8');
 
   class ContentBackend extends EventEmitter {
     async start() {}
@@ -2370,7 +2382,7 @@ test('session content returns final thread items and pending approvals in stable
         createdAt: 1,
         updatedAt: 99,
         status: { type: 'idle' },
-        path: null,
+        path: rolloutPath,
         cwd: '/tmp',
         cliVersion: 'mock',
         source: 'app-server',
@@ -2479,10 +2491,14 @@ test('session content returns final thread items and pending approvals in stable
     ['userMessage', 'agentMessage', 'turn_status', 'userMessage', 'agentMessage', 'fileChange', 'turn_status'],
   );
   assert.equal(contentResponse.payload.entries[0].item.id, 'content_user_0');
+  assert.equal(contentResponse.payload.entries[0].at, '2026-01-01T00:00:01.000Z');
   assert.equal(contentResponse.payload.entries[1].item.id, 'content_agent_0');
+  assert.equal(contentResponse.payload.entries[1].at, '2026-01-01T00:00:02.000Z');
   assert.equal(contentResponse.payload.entries[2].status, 'completed');
   assert.equal(contentResponse.payload.entries[3].item.id, 'content_user_1');
+  assert.equal(contentResponse.payload.entries[3].at, '2026-01-01T00:01:01.000Z');
   assert.equal(contentResponse.payload.entries[4].item.id, 'content_agent_1');
+  assert.equal(contentResponse.payload.entries[4].at, '2026-01-01T00:01:02.000Z');
   assert.equal(contentResponse.payload.entries[5].item.id, 'content_file_1');
   assert.equal(contentResponse.payload.entries[6].status, 'completed');
   assert.equal(contentResponse.payload.pending_approvals.length, 1);

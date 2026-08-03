@@ -77,10 +77,10 @@ export class SessionContentController {
     return { session: normalized, resumed };
   }
 
-  async #refreshSessionHistoryForSessionSync(sessionId, sinceSeq) {
+  async refreshSessionHistory(sessionId, sinceSeq, options = {}) {
     const session = this.store.getSession(sessionId);
     if (!session) {
-      return { appended: 0, skipped: 0, lastSeq: 0 };
+      return { ok: true, appended: 0, skipped: 0, lastSeq: 0, events: [] };
     }
 
     const storedEvents = this.store.syncEvents(sessionId, 0);
@@ -90,8 +90,9 @@ export class SessionContentController {
     const lastKnownStoreTurnId = this.#lastTurnIdAtSeq(storedEvents, sinceSeq);
 
     try {
-      const hydratedEvents = await this.#hydrateSessionHistory(sessionId);
-      const effectiveHydratedEvents = this.turnContent.pruneHydratedEvents(hydratedEvents, storedEvents);
+      const hydratedEvents = await this.#hydrateSessionHistory(sessionId, options);
+      const latestStoredEvents = this.store.syncEvents(sessionId, 0);
+      const effectiveHydratedEvents = this.turnContent.pruneHydratedEvents(hydratedEvents, latestStoredEvents);
       const hydratedTurnIndexes = this.#turnIndexesFromEvents(effectiveHydratedEvents);
       const knownTurnIdsAtSince = this.#turnIdsAtSeq(storedEvents, sinceSeq);
       const lastKnownHydratedTurnIndex = this.#lastKnownHydratedTurnIndex(hydratedTurnIndexes, knownTurnIdsAtSince);
@@ -103,13 +104,24 @@ export class SessionContentController {
         lastKnownHydratedTurnIndex,
         lastKnownStoreTurnId,
       });
-      const seen = new Set(storedEvents.map((event) => this.turnContent.eventSignature(event)));
+      const seen = new Set(latestStoredEvents.flatMap((event) => this.turnContent.eventDedupeSignatures(event)));
+      const appendedEvents = [];
+      let observedLastSeq = this.store.getLastSeq(sessionId);
       let appended = 0;
       let skipped = 0;
 
       for (const event of effectiveHydratedEvents) {
-        const signature = this.turnContent.eventSignature(event);
-        if (seen.has(signature)) continue;
+        const currentLastSeq = this.store.getLastSeq(sessionId);
+        if (currentLastSeq > observedLastSeq) {
+          for (const concurrentEvent of this.store.syncEvents(sessionId, observedLastSeq)) {
+            for (const signature of this.turnContent.eventDedupeSignatures(concurrentEvent)) {
+              seen.add(signature);
+            }
+          }
+          observedLastSeq = currentLastSeq;
+        }
+        const signatures = this.turnContent.eventDedupeSignatures(event);
+        if (signatures.some((signature) => seen.has(signature))) continue;
         const turnId = event?.turn_id ?? '';
         const eligible = sinceSeq <= 0
           || !turnId
@@ -117,7 +129,7 @@ export class SessionContentController {
             eligibleTurnIds.has(turnId)
             && (
               turnId !== lastKnownStoreTurnId
-              || this.#isSessionSyncContentEvent(event)
+              || this.#isSessionSyncContentEvent(event, options)
             )
           );
         if (!eligible) {
@@ -126,7 +138,11 @@ export class SessionContentController {
         }
         const stored = await this.store.appendEvent(sessionId, event);
         storedEvents.push(stored);
-        seen.add(signature);
+        appendedEvents.push(stored);
+        for (const signature of signatures) {
+          seen.add(signature);
+        }
+        observedLastSeq = stored.seq ?? observedLastSeq;
         appended += 1;
       }
 
@@ -143,14 +159,26 @@ export class SessionContentController {
         skipped_historical: skipped,
         last_seq: this.store.getLastSeq(sessionId),
       });
-      return { appended, skipped, lastSeq: this.store.getLastSeq(sessionId) };
+      return {
+        ok: true,
+        appended,
+        skipped,
+        lastSeq: this.store.getLastSeq(sessionId),
+        events: appendedEvents,
+      };
     } catch (error) {
       this.#logSync('session.sync.refresh_history.error', {
         session_id: sessionId,
         since_seq: sinceSeq,
         message: error?.message ?? String(error),
       });
-      return { appended: 0, skipped: 0, lastSeq: this.store.getLastSeq(sessionId) };
+      return {
+        ok: false,
+        appended: 0,
+        skipped: 0,
+        lastSeq: this.store.getLastSeq(sessionId),
+        events: [],
+      };
     }
   }
 
@@ -183,9 +211,10 @@ export class SessionContentController {
     return turnIds;
   }
 
-  #isSessionSyncContentEvent(event) {
+  #isSessionSyncContentEvent(event, options = {}) {
     return event?.event === 'turn/input'
       || event?.event === 'item/completed'
+      || (options.includeTailCompletion && event?.event === 'turn/completed')
       || event?.event === 'item/fileChange/patchUpdated'
       || event?.event === 'turn/diff/updated';
   }
@@ -472,7 +501,7 @@ export class SessionContentController {
 
     let { turnIds, hasRelevantEvents } = this.#changedTurnIdsForSessionSync(sessionId, sinceSeq);
     if (!hasRelevantEvents || turnIds.length === 0) {
-      await this.#refreshSessionHistoryForSessionSync(sessionId, sinceSeq);
+      await this.refreshSessionHistory(sessionId, sinceSeq);
       ({ turnIds, hasRelevantEvents } = this.#changedTurnIdsForSessionSync(sessionId, sinceSeq));
     }
     const refreshedLastSeq = this.store.getLastSeq(sessionId);
@@ -592,13 +621,17 @@ export class SessionContentController {
   }
 
 
-  async #loadHydrationThread(sessionId, session) {
+  async #loadHydrationThread(sessionId, session, options = {}) {
     const thread = session.thread ?? null;
     const rawThread = thread?.thread ?? thread;
     const status = getThreadStatusType(thread);
     const inlineTurns = Array.isArray(rawThread?.turns) ? rawThread.turns : [];
     const hasMeaningfulEvents = hasMeaningfulSessionEvents(session);
-    const shouldSkipHydrationRead = thread && status !== 'notLoaded' && inlineTurns.length === 0 && !hasMeaningfulEvents;
+    const shouldSkipHydrationRead = !options.forceRead
+      && thread
+      && status !== 'notLoaded'
+      && inlineTurns.length === 0
+      && !hasMeaningfulEvents;
 
     if (shouldSkipHydrationRead) {
       return thread;
@@ -632,12 +665,22 @@ export class SessionContentController {
     return resumed?.resumed?.thread ?? resumed?.session?.thread ?? thread ?? null;
   }
 
-  async #hydrateSessionHistory(sessionId) {
+  async #hydrateSessionHistory(sessionId, options = {}) {
     const session = this.store.getSession(sessionId);
     if (!session) return [];
 
+    const rolloutAfterBytes = Number(options.rolloutAfterBytes);
+    if (Number.isFinite(rolloutAfterBytes) && rolloutAfterBytes >= 0 && session.thread?.path) {
+      return buildEventsFromRolloutFile(
+        sessionId,
+        session.thread.path,
+        session.thread_id ?? sessionId,
+        { afterBytes: rolloutAfterBytes },
+      );
+    }
+
     try {
-      const thread = await this.#loadHydrationThread(sessionId, session);
+      const thread = await this.#loadHydrationThread(sessionId, session, options);
       const hydratedEvents = await this.turnContent.buildEventsFromThread(sessionId, thread);
       if (hydratedEvents.length > 0) {
         return hydratedEvents;

@@ -10,7 +10,6 @@ internal fun MainActivity.handleThreadItemEvent(eventName: String, payload: JSON
         when (item.optString("type", "")) {
             "agentMessage" -> {
                 if (eventName == "item/completed") {
-                    maybeNotifyAssistantMessage(item)
                     discardBufferedAssistantText(turnKey, itemKey)
                     activeSessionId?.takeIf { it.isNotBlank() }?.let { sessionId ->
                         requestSessionRefresh(sessionId)

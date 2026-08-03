@@ -120,6 +120,29 @@ export function eventSignature(event) {
   ].join('|');
 }
 
+export function eventDedupeSignatures(event) {
+  const signatures = [eventSignature(event)];
+  const turnId = event?.turn_id ?? '';
+  const payload = event?.payload ?? {};
+  if (event?.event === 'turn/input') {
+    signatures.push([
+      'content',
+      event.event,
+      turnId,
+      userMessageContentSignature(payload?.input, payload?.text),
+    ].join('|'));
+  } else if (event?.event === 'item/completed' && payload?.item?.type === 'agentMessage') {
+    signatures.push([
+      'content',
+      event.event,
+      turnId,
+      payload.item.type,
+      String(payload.item.text ?? '').trim(),
+    ].join('|'));
+  }
+  return signatures;
+}
+
 function canonicalizeItemForSignature(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) {
     return item;

@@ -193,7 +193,7 @@ internal fun MainActivity.SettingsPage() {
                 SectionTitle("通知")
                 NotificationSwitchRow(
                     label = "任意消息通知",
-                    description = "收到一条完整的 Codex 回复时通知。",
+                    description = "收到完整回复、异常结束或需要审批时通知。",
                     checked = notificationMode == NotificationMode.AnyMessage,
                     onCheckedChange = { checked ->
                         if (checked) {
@@ -215,7 +215,7 @@ internal fun MainActivity.SettingsPage() {
                         }
                     },
                 )
-                BodyText("两个开关互斥。仅在应用进程仍存活且 Bridge 保持连接时生效。")
+                BodyText("两个开关互斥。当前正在查看的会话会静默，其他会话仍会通知；仅在应用进程存活且 Bridge 保持连接时生效。")
             }
         }
 

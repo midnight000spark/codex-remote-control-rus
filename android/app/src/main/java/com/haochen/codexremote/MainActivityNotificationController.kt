@@ -41,7 +41,7 @@ internal fun MainActivity.createNotificationChannel() {
         "Codex 消息",
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Codex 回复和任务完成提醒"
+        description = "Codex 回复、审批和任务完成提醒"
     }
     getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 }
@@ -57,9 +57,30 @@ internal fun MainActivity.handleNotificationIntent(intent: Intent?) {
     }
 }
 
-internal fun MainActivity.maybeNotifyAssistantMessage(item: JSONObject) {
+internal fun MainActivity.maybeNotifyIncomingEvent(
+    eventName: String,
+    sessionId: String,
+    payload: JSONObject,
+) {
+    if (sessionId.isBlank()) return
+    when (eventName) {
+        "item/completed" -> {
+            val item = payload.optJSONObject("item") ?: return
+            if (item.optString("type", "") == "agentMessage") {
+                maybeNotifyAssistantMessage(sessionId, item)
+            }
+        }
+        "turn/completed" -> maybeNotifyTurnCompleted(sessionId, payload)
+        "item/commandExecution/requestApproval",
+        "item/fileChange/requestApproval",
+        "item/permissions/requestApproval",
+        "applyPatchApproval",
+        "execCommandApproval" -> maybeNotifyApprovalRequest(sessionId, eventName, payload)
+    }
+}
+
+private fun MainActivity.maybeNotifyAssistantMessage(sessionId: String, item: JSONObject) {
     if (notificationMode != NotificationMode.AnyMessage) return
-    val sessionId = activeSessionId?.takeIf { it.isNotBlank() } ?: return
     val preview = extractThreadItemText(item)
         .replace('\n', ' ')
         .trim()
@@ -73,13 +94,13 @@ internal fun MainActivity.maybeNotifyAssistantMessage(item: JSONObject) {
     )
 }
 
-internal fun MainActivity.maybeNotifyTurnCompleted(payload: JSONObject) {
-    if (notificationMode != NotificationMode.CompletionOnly) return
-    val sessionId = activeSessionId?.takeIf { it.isNotBlank() } ?: return
+private fun MainActivity.maybeNotifyTurnCompleted(sessionId: String, payload: JSONObject) {
+    if (notificationMode == NotificationMode.Off) return
     val status = firstNonEmpty(
         payload.optString("status", ""),
         payload.optJSONObject("turn")?.optString("status", "").orEmpty(),
     )
+    if (notificationMode == NotificationMode.AnyMessage && status !in TURN_FAILURE_STATUSES) return
     val title = when (status) {
         "failed" -> "任务失败"
         "interrupted", "cancelled", "canceled" -> "任务已中断"
@@ -93,6 +114,28 @@ internal fun MainActivity.maybeNotifyTurnCompleted(payload: JSONObject) {
     )
 }
 
+private fun MainActivity.maybeNotifyApprovalRequest(
+    sessionId: String,
+    eventName: String,
+    payload: JSONObject,
+) {
+    if (notificationMode != NotificationMode.AnyMessage) return
+    val presentation = buildApprovalPresentation(eventName, payload)
+    val detail = presentation.detail
+        .replace('\n', ' ')
+        .trim()
+        .take(180)
+    val content = listOf(notificationSessionTitle(sessionId), detail)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+    postCodexNotification(
+        sessionId = sessionId,
+        title = presentation.title,
+        content = content,
+        category = Notification.CATEGORY_REMINDER,
+    )
+}
+
 private fun MainActivity.postCodexNotification(
     sessionId: String,
     title: String,
@@ -100,7 +143,12 @@ private fun MainActivity.postCodexNotification(
     category: String,
 ) {
     if (!hasNotificationPermission()) return
-    if (activityInForeground && currentPage == AppPage.Chat) return
+    val viewingThisChat = activityInForeground &&
+        currentPage == AppPage.Chat &&
+        activeSessionId == sessionId &&
+        codeBrowserState == null &&
+        conversationImageViewerState == null
+    if (viewingThisChat) return
     val manager = getSystemService(NotificationManager::class.java)
     if (!manager.areNotificationsEnabled()) return
 
@@ -129,6 +177,8 @@ private fun MainActivity.postCodexNotification(
         .build()
     manager.notify(requestCode, notification)
 }
+
+private val TURN_FAILURE_STATUSES = setOf("failed", "interrupted", "cancelled", "canceled")
 
 private fun MainActivity.notificationSessionTitle(sessionId: String): String {
     return sessions.firstOrNull { it.sessionId == sessionId }

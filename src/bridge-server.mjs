@@ -24,6 +24,7 @@ import {
   clampMaxBytes,
 } from './bridge/file-reader.mjs';
 import { SessionContentController } from './bridge/session-content-controller.mjs';
+import { ExternalSessionMonitor } from './bridge/external-session-monitor.mjs';
 import {
   defaultSandboxPolicy,
   isThreadNotFoundError,
@@ -99,6 +100,8 @@ export class BridgeServer extends EventEmitter {
     name = 'codex-remote-control',
     version = '0.1.0',
     syncLogPath = null,
+    externalSessionPollIntervalMs = 5000,
+    externalSessionPollLimit = 50,
   }) {
     super();
     this.backend = backend;
@@ -117,6 +120,20 @@ export class BridgeServer extends EventEmitter {
     this.sessionContent = new SessionContentController({
       backend: this.backend,
       store: this.store,
+      logSync: (event, details) => this.#logSync(event, details),
+    });
+    this.externalSessionMonitor = new ExternalSessionMonitor({
+      backend: this.backend,
+      store: this.store,
+      sessionContent: this.sessionContent,
+      intervalMs: externalSessionPollIntervalMs,
+      limit: externalSessionPollLimit,
+      onEvents: (sessionId, events) => {
+        for (const event of events) {
+          this.#broadcast(event);
+        }
+        this.#emitSessionChanged(sessionId);
+      },
       logSync: (event, details) => this.#logSync(event, details),
     });
   }
@@ -155,6 +172,7 @@ export class BridgeServer extends EventEmitter {
 
   async stop() {
     this.backend.off('message', this.backendListener);
+    this.externalSessionMonitor.stop();
     for (const ws of this.connections) {
       try {
         ws.close(1001, 'server shutting down');
@@ -337,6 +355,9 @@ export class BridgeServer extends EventEmitter {
     }
 
     this.connections.add(ws);
+    if (this.connections.size === 1) {
+      this.externalSessionMonitor.start();
+    }
     this.#logSync('ws.connected', {
       remote: req.socket?.remoteAddress ?? '',
       url: req.url ?? '',
@@ -385,6 +406,9 @@ export class BridgeServer extends EventEmitter {
 
     ws.on('close', () => {
       this.connections.delete(ws);
+      if (this.connections.size === 0) {
+        this.externalSessionMonitor.stop();
+      }
       this.#logSync('ws.closed', {
         remote: req.socket?.remoteAddress ?? '',
         connections: this.connections.size,

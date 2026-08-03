@@ -7,7 +7,12 @@ import {
   userMessageContentSignature,
 } from './common.mjs';
 import { SYNC_LOG_EVENT_LIMIT, summarizeSyncEntries, syncItemTypeCounts } from './sync-log.mjs';
-import { eventSignature, mergeInitialSessionEvents, pruneHydratedEvents } from './session-event-signature.mjs';
+import {
+  eventDedupeSignatures,
+  eventSignature,
+  mergeInitialSessionEvents,
+  pruneHydratedEvents,
+} from './session-event-signature.mjs';
 import { readRolloutMessageTimestamps } from './rollout-history.mjs';
 
 const CONVERSATION_ITEM_TYPES = new Set([
@@ -811,6 +816,10 @@ export class TurnContentBuilder {
 
   eventSignature(event) {
     return eventSignature(event);
+  }
+
+  eventDedupeSignatures(event) {
+    return eventDedupeSignatures(event);
   }
 
 }

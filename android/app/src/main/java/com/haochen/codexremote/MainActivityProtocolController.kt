@@ -109,7 +109,15 @@ internal fun MainActivity.handleEvent(message: JSONObject) {
             }
         }
 
-        val sessionId = message.optString("session_id", "")
+        val sessionId = firstNonEmpty(
+            message.optProtocolString("session_id"),
+            message.optProtocolString("thread_id"),
+            payload.optProtocolString("session_id"),
+            payload.optProtocolString("thread_id"),
+            payload.optProtocolString("threadId"),
+            activeSessionId.orEmpty(),
+        )
+        maybeNotifyIncomingEvent(eventName, sessionId, payload)
         if (sessionId.isNotEmpty() && activeSessionId != null && sessionId != activeSessionId) {
             return
         }
@@ -177,7 +185,6 @@ internal fun MainActivity.handleEvent(message: JSONObject) {
             "thread/status/changed" -> updateLiveTurnStatusFromThreadStatus(payload.optJSONObject("status"))
             "turn/completed" -> {
                 val completedTurnId = message.optProtocolString("turn_id")
-                maybeNotifyTurnCompleted(payload)
                 approvalDebugLog {
                     "event turn_completed turnId=$completedTurnId activeTurnId=${activeTurnId.orEmpty()} pendingApprovals=${pendingApprovals.size}"
                 }

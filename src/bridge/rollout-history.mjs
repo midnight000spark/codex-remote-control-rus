@@ -109,15 +109,27 @@ export async function extractSessionMetadataFromRollout(session) {
   }
 }
 
-export async function buildEventsFromRolloutFile(sessionId, filePath, threadId = sessionId) {
+export async function buildEventsFromRolloutFile(
+  sessionId,
+  filePath,
+  threadId = sessionId,
+  { afterBytes = null } = {},
+) {
   const raw = await fs.readFile(filePath, 'utf8');
-  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  const lines = raw.split('\n');
   const events = [];
   let currentTurnId = null;
   let currentItemSeq = 0;
+  let byteOffset = 0;
 
-  for (const line of lines) {
-    const record = safeJsonLineParse(line);
+  for (let index = 0; index < lines.length; index += 1) {
+    const sourceLine = lines[index];
+    const hasTrailingNewline = index < lines.length - 1;
+    const recordEnd = byteOffset + Buffer.byteLength(sourceLine, 'utf8') + (hasTrailingNewline ? 1 : 0);
+    const shouldEmit = afterBytes == null || recordEnd > afterBytes;
+    byteOffset = recordEnd;
+
+    const record = safeJsonLineParse(sourceLine.trim());
     if (!record || typeof record !== 'object') continue;
     const payload = record.payload ?? {};
     if (record.type === 'event_msg') {
@@ -125,7 +137,7 @@ export async function buildEventsFromRolloutFile(sessionId, filePath, threadId =
         case 'task_started': {
           currentTurnId = payload.turn_id ?? currentTurnId;
           currentItemSeq = 0;
-          if (currentTurnId) {
+          if (currentTurnId && shouldEmit) {
             events.push(createEvent('turn/started', {
               session_id: sessionId,
               thread_id: threadId,
@@ -137,7 +149,7 @@ export async function buildEventsFromRolloutFile(sessionId, filePath, threadId =
         }
         case 'user_message': {
           const text = String(payload.message ?? '').trim();
-          if (text) {
+          if (text && shouldEmit) {
             const itemId = currentTurnId ? `rollout_${currentTurnId}_user` : `rollout_${sessionId}_user`;
             events.push(createEvent('turn/input', {
               session_id: sessionId,
@@ -156,6 +168,9 @@ export async function buildEventsFromRolloutFile(sessionId, filePath, threadId =
         case 'agent_message': {
           const text = String(payload.message ?? '').trim();
           if (text) {
+            currentItemSeq += 1;
+          }
+          if (text && shouldEmit) {
             events.push(createEvent('item/completed', {
               session_id: sessionId,
               thread_id: threadId,
@@ -163,7 +178,7 @@ export async function buildEventsFromRolloutFile(sessionId, filePath, threadId =
               payload: {
                 item: {
                   type: 'agentMessage',
-                  id: currentTurnId ? `rollout_${currentTurnId}_${String(++currentItemSeq).padStart(4, '0')}` : `rollout_${sessionId}_${String(++currentItemSeq).padStart(4, '0')}`,
+                  id: currentTurnId ? `rollout_${currentTurnId}_${String(currentItemSeq).padStart(4, '0')}` : `rollout_${sessionId}_${String(currentItemSeq).padStart(4, '0')}`,
                   text,
                   phase: null,
                   memoryCitation: null,
@@ -175,7 +190,7 @@ export async function buildEventsFromRolloutFile(sessionId, filePath, threadId =
         }
         case 'task_complete': {
           const completedTurnId = payload.turn_id ?? currentTurnId;
-          if (completedTurnId) {
+          if (completedTurnId && shouldEmit) {
             events.push(createEvent('turn/completed', {
               session_id: sessionId,
               thread_id: threadId,

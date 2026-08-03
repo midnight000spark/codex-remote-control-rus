@@ -190,6 +190,31 @@ export function normalizeThreadSummary(thread, backend = 'mock') {
   };
 }
 
+export function toSessionListItem(session) {
+  if (!session) return null;
+  const sessionId = session.session_id ?? session.thread_id ?? session.id;
+  if (!sessionId) return null;
+  return {
+    session_id: sessionId,
+    thread_id: session.thread_id ?? sessionId,
+    title: session.title ?? session.name ?? session.preview ?? '',
+    cwd: session.cwd ?? '',
+    model: session.model ?? '',
+    preview: session.preview ?? '',
+    active: session.active ?? true,
+    backend: session.backend ?? '',
+    createdAt: session.createdAt ?? '',
+    updatedAt: session.updatedAt ?? '',
+    ...(session.approvalPolicy != null ? { approvalPolicy: clone(session.approvalPolicy) } : {}),
+    ...(session.permissions != null ? { permissions: clone(session.permissions) } : {}),
+    ...(session.sandbox != null ? { sandbox: clone(session.sandbox) } : {}),
+    ...(session.contextWindow != null ? { contextWindow: session.contextWindow } : {}),
+    ...(session.lastTokenUsage != null ? { lastTokenUsage: clone(session.lastTokenUsage) } : {}),
+    ...(session.totalTokenUsage != null ? { totalTokenUsage: clone(session.totalTokenUsage) } : {}),
+    ...(session.reasoningEffort != null ? { reasoningEffort: clone(session.reasoningEffort) } : {}),
+  };
+}
+
 function inferThreadHistoryUpdatedAt(thread) {
   const turns = Array.isArray(thread?.turns) ? thread.turns : [];
   let latestSeconds = 0;

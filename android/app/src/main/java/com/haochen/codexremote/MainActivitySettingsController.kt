@@ -59,6 +59,48 @@ internal fun MainActivity.handleTopLevelBack(): Boolean {
     }
 }
 
+internal fun MainActivity.loadSessionHistoryMonths(): Int {
+    return prefs.getInt(KEY_SESSION_HISTORY_MONTHS, DEFAULT_SESSION_HISTORY_MONTHS).coerceIn(0, 120)
+}
+
+internal fun MainActivity.updateSessionHistoryMonths(months: Int) {
+    val normalized = months.coerceIn(0, 120)
+    if (sessionHistoryMonths == normalized) return
+    sessionHistoryMonths = normalized
+    prefs.edit().putInt(KEY_SESSION_HISTORY_MONTHS, normalized).apply()
+    if (connected) {
+        bootSyncRequested = false
+        requestSessionList()
+    }
+}
+
+internal fun MainActivity.sessionHistoryMonthMenuOptions(): List<SelectionMenuOption> {
+    return listOf(1, 3, 6, 12, 0).map { months ->
+        SelectionMenuOption(
+            value = months.toString(),
+            label = if (months == 0) "全部历史" else "最近 $months 个月",
+            supporting = if (months == 0) "拉取所有会话的摘要。" else "只拉取最近更新过的会话摘要。",
+        )
+    }
+}
+
+internal fun MainActivity.sessionHistoryMonthLabel(): String {
+    return if (sessionHistoryMonths == 0) "全部历史" else "最近 $sessionHistoryMonths 个月"
+}
+
+internal fun MainActivity.sessionHistoryMonthDescription(): String {
+    return "只限制侧边栏会话列表，不会删除 Bridge 上的旧对话。"
+}
+
+internal fun MainActivity.loadRefreshSessionsOnDrawerOpen(): Boolean {
+    return prefs.getBoolean(KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN, true)
+}
+
+internal fun MainActivity.updateRefreshSessionsOnDrawerOpen(enabled: Boolean) {
+    refreshSessionsOnDrawerOpen = enabled
+    prefs.edit().putBoolean(KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN, enabled).apply()
+}
+
 internal fun MainActivity.loadSessionSyncIntervalSeconds(): Int {
     val value = prefs.getInt(KEY_SESSION_SYNC_INTERVAL_SECONDS, DEFAULT_SESSION_SYNC_INTERVAL_SECONDS)
     return value.coerceIn(1, 60)

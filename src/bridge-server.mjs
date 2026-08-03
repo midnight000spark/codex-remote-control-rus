@@ -31,6 +31,7 @@ import {
   normalizePermissionSelection,
   normalizeSandboxPolicy,
   normalizeThreadSummary,
+  toSessionListItem,
 } from './bridge/session-normalization.mjs';
 import {
   normalizeSeq,
@@ -59,6 +60,32 @@ async function readRequestBody(req, maxBytes) {
     chunks.push(bytes);
   }
   return Buffer.concat(chunks, totalBytes);
+}
+
+function normalizeHistoryMonths(value) {
+  const months = Number(value);
+  return Number.isFinite(months) && months > 0 ? Math.min(Math.floor(months), 120) : 0;
+}
+
+function sessionTimestampMillis(session) {
+  const raw = session?.updatedAt ?? session?.createdAt;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric < 100_000_000_000 ? numeric * 1000 : numeric;
+  }
+  const parsed = Date.parse(String(raw ?? ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function historyCutoffMillis(months) {
+  if (months <= 0) return 0;
+  const cutoff = new Date();
+  const targetDay = cutoff.getUTCDate();
+  cutoff.setUTCDate(1);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - months);
+  const daysInTargetMonth = new Date(Date.UTC(cutoff.getUTCFullYear(), cutoff.getUTCMonth() + 1, 0)).getUTCDate();
+  cutoff.setUTCDate(Math.min(targetDay, daysInTargetMonth));
+  return cutoff.getTime();
 }
 
 export class BridgeServer extends EventEmitter {
@@ -375,6 +402,8 @@ export class BridgeServer extends EventEmitter {
         ws.send(JSON.stringify(createResponse(id, { pong: true }, 'pong')));
         return;
       case 'session.list': {
+        const historyMonths = normalizeHistoryMonths(payload.history_months ?? payload.historyMonths);
+        const cutoffMillis = historyCutoffMillis(historyMonths);
         const backendThreads = await this.backend.listThreads(payload);
         const sessionsById = new Map();
         const backendSessions = backendThreads.map((thread) => {
@@ -392,6 +421,9 @@ export class BridgeServer extends EventEmitter {
           }
         }
         const sessions = [...sessionsById.values()]
+          .map(toSessionListItem)
+          .filter(Boolean)
+          .filter((session) => cutoffMillis <= 0 || sessionTimestampMillis(session) >= cutoffMillis)
           .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
         ws.send(JSON.stringify(createResponse(id, { sessions })));
         return;

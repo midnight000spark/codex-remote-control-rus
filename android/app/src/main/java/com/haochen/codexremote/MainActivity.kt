@@ -38,6 +38,8 @@ internal const val KEY_CHAT_SANDBOX = "chat_sandbox"
 internal const val KEY_AUTO_RECONNECT = "auto_reconnect"
 internal const val KEY_AUTO_RECONNECT_MAX_ATTEMPTS = "auto_reconnect_max_attempts"
 internal const val KEY_STARTUP_PAGE = "startup_page"
+internal const val KEY_SESSION_HISTORY_MONTHS = "session_history_months"
+internal const val KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN = "refresh_sessions_on_drawer_open"
 internal const val KEY_SESSION_SYNC_INTERVAL_SECONDS = "session_sync_interval_seconds"
 internal const val KEY_SESSION_INCREMENTAL_SYNC = "session_incremental_sync"
 internal const val KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS = "bridge_connect_timeout_seconds"
@@ -50,6 +52,7 @@ internal const val CODE_BROWSER_FILE_CACHE_SIZE = 24
 internal const val CODE_BROWSER_RENDER_CACHE_SIZE = 16
 internal const val DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS = 3
 internal const val DEFAULT_BRIDGE_PING_INTERVAL_SECONDS = 20
+internal const val DEFAULT_SESSION_HISTORY_MONTHS = 0
 internal const val DEFAULT_SESSION_SYNC_INTERVAL_SECONDS = 5
 
 class MainActivity : ComponentActivity() {
@@ -149,6 +152,8 @@ class MainActivity : ComponentActivity() {
     internal var autoReconnectEnabled by mutableStateOf(false)
     internal var autoReconnectMaxAttempts by mutableStateOf(0)
     internal var startupPagePreference by mutableStateOf(AppPage.Chat)
+    internal var sessionHistoryMonths by mutableStateOf(DEFAULT_SESSION_HISTORY_MONTHS)
+    internal var refreshSessionsOnDrawerOpen by mutableStateOf(true)
     internal var sessionSyncIntervalSeconds by mutableStateOf(DEFAULT_SESSION_SYNC_INTERVAL_SECONDS)
     internal var sessionIncrementalSyncEnabled by mutableStateOf(true)
     internal var bridgeConnectTimeoutSeconds by mutableStateOf(DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS)
@@ -209,6 +214,8 @@ class MainActivity : ComponentActivity() {
         autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
         autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
         startupPagePreference = loadStartupPagePreference()
+        sessionHistoryMonths = loadSessionHistoryMonths()
+        refreshSessionsOnDrawerOpen = loadRefreshSessionsOnDrawerOpen()
         sessionSyncIntervalSeconds = loadSessionSyncIntervalSeconds()
         sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
         bridgeConnectTimeoutSeconds = loadBridgeConnectTimeoutSeconds()

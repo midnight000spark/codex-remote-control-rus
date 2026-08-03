@@ -6,7 +6,12 @@ import org.json.JSONObject
 
 internal fun MainActivity.requestSessionList() {
         if (!ensureConnected()) return
-        sendRequest("session.list", JSONObject()) { response ->
+        val requestPayload = JSONObject().apply {
+            if (sessionHistoryMonths > 0) {
+                put("history_months", sessionHistoryMonths)
+            }
+        }
+        sendRequest("session.list", requestPayload) { response ->
             val payload = response.optJSONObject("payload")
             val array = payload?.optJSONArray("sessions")
             val newSessions = mutableListOf<SessionInfo>()

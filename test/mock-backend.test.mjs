@@ -3453,6 +3453,8 @@ test('bridge preserves stored session metadata in session.list and session.conte
   assert.equal(sessionList.payload.sessions[0].contextWindow, 123456);
   assert.equal(sessionList.payload.sessions[0].lastTokenUsage.totalTokens, 120);
   assert.equal(sessionList.payload.sessions[0].totalTokenUsage.totalTokens, 900);
+  assert.equal(Object.hasOwn(sessionList.payload.sessions[0], 'thread'), false);
+  assert.equal(Object.hasOwn(sessionList.payload.sessions[0], 'events'), false);
 
   ws.send(JSON.stringify({ id: '2', type: 'session.content', payload: { session_id: sessionId } }));
   await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '2'));
@@ -3472,6 +3474,8 @@ test('bridge preserves stored session metadata in session.list and session.conte
 
 test('bridge session.list includes stored sessions missing from backend page', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-session-list-store-test-'));
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const nowIso = new Date(nowSeconds * 1000).toISOString();
   const listedThread = {
     id: 'backend_thread_1',
     sessionId: 'backend_thread_1',
@@ -3481,7 +3485,7 @@ test('bridge session.list includes stored sessions missing from backend page', a
     model: 'gpt-5',
     modelProvider: 'custom',
     createdAt: 1,
-    updatedAt: 20,
+    updatedAt: nowSeconds,
     status: { type: 'idle' },
     path: null,
     cwd: '/tmp/backend-workspace',
@@ -3516,7 +3520,7 @@ test('bridge session.list includes stored sessions missing from backend page', a
     backend: 'custom',
     preview: 'Stale backend preview',
     active: true,
-    updatedAt: '2026-05-20T00:00:00.000Z',
+    updatedAt: nowIso,
   });
   await store.upsertSession({
     session_id: 'stored_only_thread_1',
@@ -3527,7 +3531,26 @@ test('bridge session.list includes stored sessions missing from backend page', a
     backend: 'custom',
     preview: 'Stored only session',
     active: true,
-    updatedAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: nowIso,
+    thread: {
+      id: 'stored_only_thread_1',
+      turns: [{ id: 'stored_turn_1', items: [{ type: 'agentMessage', text: 'stored body must not be listed' }] }],
+    },
+  });
+  await store.appendEvent('stored_only_thread_1', {
+    event: 'item/completed',
+    payload: { item: { type: 'agentMessage', id: 'stored_item_1', text: 'stored event must not be listed' } },
+  });
+  await store.upsertSession({
+    session_id: 'old_stored_thread_1',
+    thread_id: 'old_stored_thread_1',
+    title: 'Old stored session',
+    cwd: '/tmp/old-workspace',
+    model: 'gpt-5',
+    backend: 'custom',
+    preview: 'Old stored session',
+    active: true,
+    updatedAt: '2000-01-01T00:00:00.000Z',
   });
 
   const bridge = new BridgeServer({
@@ -3554,15 +3577,23 @@ test('bridge session.list includes stored sessions missing from backend page', a
   assert.equal(sessionList.ok, true);
   assert.deepEqual(
     sessionList.payload.sessions.map((session) => session.session_id).sort(),
-    ['backend_thread_1', 'stored_only_thread_1'],
-  );
-  assert.deepEqual(
-    new Set(sessionList.payload.sessions.map((session) => session.cwd)),
-    new Set(['/tmp/backend-workspace', '/tmp/stored-workspace']),
+    ['backend_thread_1', 'old_stored_thread_1', 'stored_only_thread_1'],
   );
   assert.equal(
     sessionList.payload.sessions.find((session) => session.session_id === 'backend_thread_1').title,
     'Backend session',
+  );
+  const storedOnlySession = sessionList.payload.sessions.find((session) => session.session_id === 'stored_only_thread_1');
+  assert.equal(Object.hasOwn(storedOnlySession, 'thread'), false);
+  assert.equal(Object.hasOwn(storedOnlySession, 'events'), false);
+  assert.equal(JSON.stringify(storedOnlySession).includes('must not be listed'), false);
+
+  ws.send(JSON.stringify({ id: '2', type: 'session.list', payload: { history_months: 3 } }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '2'));
+  const recentSessionList = messages.find((m) => m.type === 'response' && m.id === '2');
+  assert.deepEqual(
+    recentSessionList.payload.sessions.map((session) => session.session_id).sort(),
+    ['backend_thread_1', 'stored_only_thread_1'],
   );
 
   ws.close();

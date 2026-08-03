@@ -27,12 +27,14 @@ private val STRING_BACKUP_KEYS = listOf(
 
 private val BOOLEAN_BACKUP_KEYS = listOf(
     KEY_AUTO_RECONNECT,
+    KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN,
     KEY_SESSION_INCREMENTAL_SYNC,
     KEY_SHOW_MESSAGE_TIMESTAMPS,
 )
 
 private val INT_BACKUP_KEYS = listOf(
     KEY_AUTO_RECONNECT_MAX_ATTEMPTS,
+    KEY_SESSION_HISTORY_MONTHS,
     KEY_SESSION_SYNC_INTERVAL_SECONDS,
     KEY_BRIDGE_CONNECT_TIMEOUT_SECONDS,
     KEY_BRIDGE_PING_INTERVAL_SECONDS,
@@ -110,6 +112,11 @@ private fun MainActivity.buildSettingsBackupDocument(): JSONObject {
         put("autoReconnectMaxAttempts", prefs.getInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, 0).coerceAtLeast(0))
         putStringIfPresent("startupPage", prefs.getString(KEY_STARTUP_PAGE, null))
         putStringIfPresent("notificationMode", prefs.getString(KEY_NOTIFICATION_MODE, null))
+        put(
+            "sessionHistoryMonths",
+            prefs.getInt(KEY_SESSION_HISTORY_MONTHS, DEFAULT_SESSION_HISTORY_MONTHS).coerceIn(0, 120),
+        )
+        put("refreshSessionsOnDrawerOpen", prefs.getBoolean(KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN, true))
         put(
             "sessionSyncIntervalSeconds",
             prefs.getInt(KEY_SESSION_SYNC_INTERVAL_SECONDS, DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
@@ -191,6 +198,14 @@ private fun MainActivity.applySettingsBackupDocument(root: JSONObject) {
     editor.putInt(KEY_AUTO_RECONNECT_MAX_ATTEMPTS, settings.optInt("autoReconnectMaxAttempts", 0).coerceAtLeast(0))
     editor.putStringIfPresent(KEY_STARTUP_PAGE, settings.optStringOrNull("startupPage"))
     editor.putStringIfPresent(KEY_NOTIFICATION_MODE, settings.optStringOrNull("notificationMode"))
+    editor.putInt(
+        KEY_SESSION_HISTORY_MONTHS,
+        settings.optInt("sessionHistoryMonths", DEFAULT_SESSION_HISTORY_MONTHS).coerceIn(0, 120),
+    )
+    editor.putBoolean(
+        KEY_REFRESH_SESSIONS_ON_DRAWER_OPEN,
+        settings.optBoolean("refreshSessionsOnDrawerOpen", true),
+    )
     editor.putInt(
         KEY_SESSION_SYNC_INTERVAL_SECONDS,
         settings.optInt("sessionSyncIntervalSeconds", DEFAULT_SESSION_SYNC_INTERVAL_SECONDS).coerceIn(1, 60),
@@ -287,6 +302,8 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
     autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
     startupPagePreference = loadStartupPagePreference()
+    sessionHistoryMonths = loadSessionHistoryMonths()
+    refreshSessionsOnDrawerOpen = loadRefreshSessionsOnDrawerOpen()
     sessionSyncIntervalSeconds = loadSessionSyncIntervalSeconds()
     sessionIncrementalSyncEnabled = loadSessionIncrementalSyncEnabled()
     showMessageTimestamps = loadShowMessageTimestamps()

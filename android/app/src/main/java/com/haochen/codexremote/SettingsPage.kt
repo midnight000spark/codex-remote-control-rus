@@ -70,11 +70,13 @@ internal fun MainActivity.SettingsPage() {
     }
     var startupPageExpanded by remember { mutableStateOf(false) }
     var reconnectAttemptsExpanded by remember { mutableStateOf(false) }
+    var sessionHistoryMonthExpanded by remember { mutableStateOf(false) }
     var sessionSyncIntervalExpanded by remember { mutableStateOf(false) }
     var bridgeConnectTimeoutExpanded by remember { mutableStateOf(false) }
     var bridgePingIntervalExpanded by remember { mutableStateOf(false) }
     val startupPageOptions = startupPageMenuOptions()
     val reconnectAttemptOptions = autoReconnectAttemptMenuOptions()
+    val sessionHistoryMonthOptions = sessionHistoryMonthMenuOptions()
     val sessionSyncIntervalOptions = sessionSyncIntervalMenuOptions()
     val bridgeConnectTimeoutOptions = bridgeConnectTimeoutMenuOptions()
     val bridgePingIntervalOptions = bridgePingIntervalMenuOptions()
@@ -275,6 +277,42 @@ internal fun MainActivity.SettingsPage() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 SectionTitle("同步")
+                SelectionMenuField(
+                    label = "历史范围",
+                    selectedLabel = sessionHistoryMonthLabel(),
+                    expanded = sessionHistoryMonthExpanded,
+                    onExpandedChange = { sessionHistoryMonthExpanded = it },
+                    options = sessionHistoryMonthOptions,
+                    onSelect = { value ->
+                        updateSessionHistoryMonths(value.toIntOrNull() ?: DEFAULT_SESSION_HISTORY_MONTHS)
+                    },
+                )
+                BodyText(sessionHistoryMonthDescription())
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                    color = uiSurfaceAlt,
+                    border = BorderStroke(1.dp, uiBorder),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Label("打开侧边栏自动刷新")
+                            BodyText("关闭后使用缓存，仍可点击侧边栏里的“刷新”手动更新。")
+                        }
+                        Switch(
+                            checked = refreshSessionsOnDrawerOpen,
+                            onCheckedChange = { updateRefreshSessionsOnDrawerOpen(it) },
+                        )
+                    }
+                }
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,

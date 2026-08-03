@@ -177,7 +177,7 @@ internal fun MainActivity.RemoteApp() {
                 topBar = {
                     AppTopBar(
                         onOpenDrawer = {
-                            if (connected) {
+                            if (connected && refreshSessionsOnDrawerOpen) {
                                 requestSessionList()
                             }
                             scope.launch {

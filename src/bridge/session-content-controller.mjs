@@ -90,7 +90,9 @@ export class SessionContentController {
     const lastKnownStoreTurnId = this.#lastTurnIdAtSeq(storedEvents, sinceSeq);
 
     try {
-      const hydratedEvents = await this.#hydrateSessionHistory(sessionId, options);
+      const hydratedEvents = Array.isArray(options.hydratedEvents)
+        ? options.hydratedEvents
+        : await this.#hydrateSessionHistory(sessionId, options);
       const latestStoredEvents = this.store.syncEvents(sessionId, 0);
       const effectiveHydratedEvents = this.turnContent.pruneHydratedEvents(hydratedEvents, latestStoredEvents);
       const hydratedTurnIndexes = this.#turnIndexesFromEvents(effectiveHydratedEvents);

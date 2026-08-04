@@ -4,6 +4,251 @@ import { clone, firstNonEmptyString, safeJsonLineParse } from './common.mjs';
 import { normalizeTokenUsageSnapshot } from './session-normalization.mjs';
 
 const rolloutMessageTimestampCache = new Map();
+const ROLLOUT_CONTEXT_SCAN_BYTES = 64 * 1024;
+const ROLLOUT_READ_CHUNK_BYTES = 256 * 1024;
+
+function emptyRolloutCursor(offset = 0) {
+  return {
+    offset,
+    currentTurnId: null,
+    currentItemSeq: 0,
+    partialLine: Buffer.alloc(0),
+  };
+}
+
+function cloneRolloutCursor(cursor) {
+  return {
+    offset: Math.max(0, Number(cursor?.offset) || 0),
+    currentTurnId: cursor?.currentTurnId ?? null,
+    currentItemSeq: Math.max(0, Number(cursor?.currentItemSeq) || 0),
+    partialLine: Buffer.from(cursor?.partialLine ?? Buffer.alloc(0)),
+  };
+}
+
+function processRolloutEventRecord(record, cursor, context, events, emit) {
+  if (record?.type !== 'event_msg') return false;
+  const payload = record.payload ?? {};
+  switch (payload.type) {
+    case 'task_started': {
+      cursor.currentTurnId = payload.turn_id ?? cursor.currentTurnId;
+      cursor.currentItemSeq = 0;
+      if (emit && cursor.currentTurnId) {
+        events.push(createEvent('turn/started', {
+          session_id: context.sessionId,
+          thread_id: context.threadId,
+          turn_id: cursor.currentTurnId,
+          payload: { turn: { id: cursor.currentTurnId } },
+        }));
+      }
+      return true;
+    }
+    case 'user_message': {
+      const text = String(payload.message ?? '').trim();
+      if (emit && text) {
+        const itemId = cursor.currentTurnId
+          ? `rollout_${cursor.currentTurnId}_user`
+          : `rollout_${context.sessionId}_user`;
+        events.push(createEvent('turn/input', {
+          session_id: context.sessionId,
+          thread_id: context.threadId,
+          turn_id: cursor.currentTurnId,
+          payload: {
+            itemId,
+            item_id: itemId,
+            text,
+            input: null,
+          },
+        }));
+      }
+      return false;
+    }
+    case 'agent_message': {
+      const text = String(payload.message ?? '').trim();
+      if (text) {
+        cursor.currentItemSeq += 1;
+      }
+      if (emit && text) {
+        const itemId = cursor.currentTurnId
+          ? `rollout_${cursor.currentTurnId}_${String(cursor.currentItemSeq).padStart(4, '0')}`
+          : `rollout_${context.sessionId}_${String(cursor.currentItemSeq).padStart(4, '0')}`;
+        events.push(createEvent('item/completed', {
+          session_id: context.sessionId,
+          thread_id: context.threadId,
+          turn_id: cursor.currentTurnId,
+          payload: {
+            item: {
+              type: 'agentMessage',
+              id: itemId,
+              text,
+              phase: null,
+              memoryCitation: null,
+            },
+          },
+        }));
+      }
+      return false;
+    }
+    case 'task_complete': {
+      const completedTurnId = payload.turn_id ?? cursor.currentTurnId;
+      if (emit && completedTurnId) {
+        events.push(createEvent('turn/completed', {
+          session_id: context.sessionId,
+          thread_id: context.threadId,
+          turn_id: completedTurnId,
+          payload: {
+            status: 'completed',
+            turn: {
+              id: completedTurnId,
+              status: 'completed',
+            },
+          },
+        }));
+      }
+      cursor.currentTurnId = null;
+      cursor.currentItemSeq = 0;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+function consumeRolloutBytes(bytes, cursor, context, { emit, final }) {
+  const data = cursor.partialLine.length > 0
+    ? Buffer.concat([cursor.partialLine, bytes])
+    : bytes;
+  const events = [];
+  let sawBoundary = false;
+  let lineStart = 0;
+
+  for (let index = 0; index < data.length; index += 1) {
+    if (data[index] !== 0x0a) continue;
+    const line = data.subarray(lineStart, index).toString('utf8').trim();
+    const record = line ? safeJsonLineParse(line) : null;
+    if (record) {
+      sawBoundary = processRolloutEventRecord(record, cursor, context, events, emit) || sawBoundary;
+    }
+    lineStart = index + 1;
+  }
+
+  const remainder = data.subarray(lineStart);
+  cursor.partialLine = Buffer.alloc(0);
+  if (final && remainder.length > 0) {
+    const line = remainder.toString('utf8').trim();
+    const record = line ? safeJsonLineParse(line) : null;
+    if (record) {
+      sawBoundary = processRolloutEventRecord(record, cursor, context, events, emit) || sawBoundary;
+    } else if (line) {
+      cursor.partialLine = Buffer.from(remainder);
+    }
+  } else if (remainder.length > 0) {
+    cursor.partialLine = Buffer.from(remainder);
+  }
+
+  return { events, sawBoundary };
+}
+
+async function readHandleRange(handle, start, end) {
+  const length = Math.max(0, end - start);
+  const buffer = Buffer.allocUnsafe(length);
+  let readOffset = 0;
+  while (readOffset < length) {
+    const { bytesRead } = await handle.read(
+      buffer,
+      readOffset,
+      length - readOffset,
+      start + readOffset,
+    );
+    if (bytesRead <= 0) break;
+    readOffset += bytesRead;
+  }
+  return buffer.subarray(0, readOffset);
+}
+
+async function initializeRolloutCursor(handle, endOffset, context) {
+  if (endOffset <= 0) return emptyRolloutCursor(0);
+
+  let windowBytes = Math.min(ROLLOUT_CONTEXT_SCAN_BYTES, endOffset);
+  while (true) {
+    const start = Math.max(0, endOffset - windowBytes);
+    const readStart = start > 0 ? start - 1 : 0;
+    const raw = await readHandleRange(handle, readStart, endOffset);
+    let suffix = raw;
+    if (start > 0) {
+      if (raw[0] === 0x0a) {
+        suffix = raw.subarray(1);
+      } else {
+        const newline = raw.indexOf(0x0a);
+        suffix = newline >= 0 ? raw.subarray(newline + 1) : Buffer.alloc(0);
+      }
+    }
+
+    const cursor = emptyRolloutCursor(endOffset);
+    const { sawBoundary } = consumeRolloutBytes(suffix, cursor, context, {
+      emit: false,
+      final: false,
+    });
+    if (sawBoundary || start === 0) {
+      return cursor;
+    }
+    windowBytes = Math.min(endOffset, windowBytes * 2);
+  }
+}
+
+export async function createRolloutEventCursor(filePath, endOffset = null) {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const stat = await handle.stat();
+    const targetOffset = endOffset == null
+      ? stat.size
+      : Math.max(0, Math.min(Number(endOffset) || 0, stat.size));
+    return await initializeRolloutCursor(handle, targetOffset, { sessionId: '', threadId: '' });
+  } finally {
+    await handle.close();
+  }
+}
+
+export async function readRolloutEventsFromCursor(
+  sessionId,
+  filePath,
+  threadId = sessionId,
+  sourceCursor = emptyRolloutCursor(0),
+  endOffset = null,
+) {
+  const context = { sessionId, threadId };
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const stat = await handle.stat();
+    const targetOffset = endOffset == null
+      ? stat.size
+      : Math.max(0, Math.min(Number(endOffset) || 0, stat.size));
+    if (targetOffset < (Number(sourceCursor?.offset) || 0)) {
+      return {
+        events: [],
+        cursor: await initializeRolloutCursor(handle, targetOffset, context),
+      };
+    }
+
+    const cursor = cloneRolloutCursor(sourceCursor);
+    const events = [];
+    let position = cursor.offset;
+    while (position < targetOffset) {
+      const end = Math.min(targetOffset, position + ROLLOUT_READ_CHUNK_BYTES);
+      const bytes = await readHandleRange(handle, position, end);
+      if (bytes.length === 0) break;
+      position += bytes.length;
+      const parsed = consumeRolloutBytes(bytes, cursor, context, {
+        emit: true,
+        final: position >= targetOffset,
+      });
+      events.push(...parsed.events);
+    }
+    cursor.offset = position;
+    return { events, cursor };
+  } finally {
+    await handle.close();
+  }
+}
 
 export async function readRolloutMessageTimestamps(filePath) {
   const stat = await fs.stat(filePath);
@@ -115,105 +360,11 @@ export async function buildEventsFromRolloutFile(
   threadId = sessionId,
   { afterBytes = null } = {},
 ) {
-  const raw = await fs.readFile(filePath, 'utf8');
-  const lines = raw.split('\n');
-  const events = [];
-  let currentTurnId = null;
-  let currentItemSeq = 0;
-  let byteOffset = 0;
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const sourceLine = lines[index];
-    const hasTrailingNewline = index < lines.length - 1;
-    const recordEnd = byteOffset + Buffer.byteLength(sourceLine, 'utf8') + (hasTrailingNewline ? 1 : 0);
-    const shouldEmit = afterBytes == null || recordEnd > afterBytes;
-    byteOffset = recordEnd;
-
-    const record = safeJsonLineParse(sourceLine.trim());
-    if (!record || typeof record !== 'object') continue;
-    const payload = record.payload ?? {};
-    if (record.type === 'event_msg') {
-      switch (payload.type) {
-        case 'task_started': {
-          currentTurnId = payload.turn_id ?? currentTurnId;
-          currentItemSeq = 0;
-          if (currentTurnId && shouldEmit) {
-            events.push(createEvent('turn/started', {
-              session_id: sessionId,
-              thread_id: threadId,
-              turn_id: currentTurnId,
-              payload: { turn: { id: currentTurnId } },
-            }));
-          }
-          break;
-        }
-        case 'user_message': {
-          const text = String(payload.message ?? '').trim();
-          if (text && shouldEmit) {
-            const itemId = currentTurnId ? `rollout_${currentTurnId}_user` : `rollout_${sessionId}_user`;
-            events.push(createEvent('turn/input', {
-              session_id: sessionId,
-              thread_id: threadId,
-              turn_id: currentTurnId,
-              payload: {
-                itemId,
-                item_id: itemId,
-                text,
-                input: null,
-              },
-            }));
-          }
-          break;
-        }
-        case 'agent_message': {
-          const text = String(payload.message ?? '').trim();
-          if (text) {
-            currentItemSeq += 1;
-          }
-          if (text && shouldEmit) {
-            events.push(createEvent('item/completed', {
-              session_id: sessionId,
-              thread_id: threadId,
-              turn_id: currentTurnId,
-              payload: {
-                item: {
-                  type: 'agentMessage',
-                  id: currentTurnId ? `rollout_${currentTurnId}_${String(currentItemSeq).padStart(4, '0')}` : `rollout_${sessionId}_${String(currentItemSeq).padStart(4, '0')}`,
-                  text,
-                  phase: null,
-                  memoryCitation: null,
-                },
-              },
-            }));
-          }
-          break;
-        }
-        case 'task_complete': {
-          const completedTurnId = payload.turn_id ?? currentTurnId;
-          if (completedTurnId && shouldEmit) {
-            events.push(createEvent('turn/completed', {
-              session_id: sessionId,
-              thread_id: threadId,
-              turn_id: completedTurnId,
-              payload: {
-                status: 'completed',
-                turn: {
-                  id: completedTurnId,
-                  status: 'completed',
-                },
-              },
-            }));
-          }
-          currentTurnId = null;
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-
-  return events;
+  const cursor = afterBytes == null
+    ? emptyRolloutCursor(0)
+    : await createRolloutEventCursor(filePath, afterBytes);
+  const result = await readRolloutEventsFromCursor(sessionId, filePath, threadId, cursor);
+  return result.events;
 }
 
 export async function buildContentEntriesFromRolloutFile(sessionId, filePath, threadId = sessionId) {

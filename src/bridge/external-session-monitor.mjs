@@ -4,6 +4,10 @@ import {
   mergeSessionSummary,
   normalizeThreadSummary,
 } from './session-normalization.mjs';
+import {
+  createRolloutEventCursor,
+  readRolloutEventsFromCursor,
+} from './rollout-history.mjs';
 
 function rolloutPath(session) {
   const value = session?.thread?.path;
@@ -45,6 +49,7 @@ async function buildSnapshot(session) {
   return {
     rolloutPath: filePath,
     rolloutSize,
+    rolloutCursor: null,
     fingerprint: JSON.stringify([
       session?.updatedAt ?? '',
       session?.active ?? true,
@@ -159,6 +164,9 @@ export class ExternalSessionMonitor {
       const sessionId = summary.session_id;
       const previous = this.snapshots.get(sessionId) ?? null;
       const current = await buildSnapshot(summary);
+      if (previous?.rolloutPath === current.rolloutPath) {
+        current.rolloutCursor = previous.rolloutCursor ?? null;
+      }
       if (previous?.fingerprint === current.fingerprint) continue;
 
       const stored = this.store.getSession(sessionId);
@@ -172,8 +180,24 @@ export class ExternalSessionMonitor {
       const rolloutAfterBytes = changedRollout
         ? (current.rolloutSize >= previous.rolloutSize ? previous.rolloutSize : 0)
         : null;
+      let hydratedEvents = null;
+      if (changedRollout) {
+        const cursor = current.rolloutSize < previous.rolloutSize
+          ? await createRolloutEventCursor(current.rolloutPath, 0)
+          : previous.rolloutCursor
+            ?? await createRolloutEventCursor(previous.rolloutPath, previous.rolloutSize);
+        const incremental = await readRolloutEventsFromCursor(
+          sessionId,
+          current.rolloutPath,
+          summary.thread_id ?? sessionId,
+          cursor,
+          current.rolloutSize,
+        );
+        current.rolloutCursor = incremental.cursor;
+        hydratedEvents = incremental.events;
+      }
       const refresh = await this.sessionContent.refreshSessionHistory(sessionId, sinceSeq, {
-        ...(rolloutAfterBytes != null ? { rolloutAfterBytes } : {}),
+        ...(hydratedEvents != null ? { hydratedEvents } : {}),
         forceRead: true,
         includeTailCompletion: true,
       });

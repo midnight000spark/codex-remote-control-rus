@@ -6,6 +6,10 @@ import path from 'node:path';
 import { EventEmitter, once } from 'node:events';
 import WebSocket from 'ws';
 import { BridgeServer } from '../src/bridge-server.mjs';
+import {
+  createRolloutEventCursor,
+  readRolloutEventsFromCursor,
+} from '../src/bridge/rollout-history.mjs';
 import { StateStore } from '../src/store.mjs';
 
 function rolloutLines(turnId, userText, assistantText, second) {
@@ -38,6 +42,78 @@ class ExternalThreadBackend extends EventEmitter {
     return { thread: structuredClone(this.thread) };
   }
 }
+
+test('incremental rollout cursor preserves turn context across a large prefix', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-rollout-cursor-test-'));
+  const rolloutPath = path.join(dir, 'rollout.jsonl');
+  const noise = Array.from({ length: 4000 }, (_, index) => JSON.stringify({
+    timestamp: `2026-08-03T00:00:01.${String(index % 1000).padStart(3, '0')}Z`,
+    type: 'event_msg',
+    payload: { type: 'token_count', padding: 'x'.repeat(120) },
+  }));
+  const baselineLines = [
+    JSON.stringify({ timestamp: '2026-08-03T00:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn_large' } }),
+    JSON.stringify({ timestamp: '2026-08-03T00:00:00.100Z', type: 'event_msg', payload: { type: 'agent_message', message: '第一段' } }),
+    ...noise,
+    '',
+  ].join('\n');
+
+  try {
+    await fs.writeFile(rolloutPath, baselineLines, 'utf8');
+    const baselineSize = (await fs.stat(rolloutPath)).size;
+    const cursor = await createRolloutEventCursor(rolloutPath, baselineSize);
+    await fs.appendFile(rolloutPath, [
+      JSON.stringify({ timestamp: '2026-08-03T00:00:02.000Z', type: 'event_msg', payload: { type: 'agent_message', message: '第二段' } }),
+      JSON.stringify({ timestamp: '2026-08-03T00:00:02.100Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn_large' } }),
+      '',
+    ].join('\n'), 'utf8');
+
+    const result = await readRolloutEventsFromCursor(
+      'large_thread',
+      rolloutPath,
+      'large_thread',
+      cursor,
+    );
+    assert.equal(result.events.length, 2);
+    assert.equal(result.events[0].event, 'item/completed');
+    assert.equal(result.events[0].turn_id, 'turn_large');
+    assert.equal(result.events[0].payload.item.id, 'rollout_turn_large_0002');
+    assert.equal(result.events[0].payload.item.text, '第二段');
+    assert.equal(result.events[1].event, 'turn/completed');
+    assert.equal(result.cursor.offset, (await fs.stat(rolloutPath)).size);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('incremental rollout cursor emits a complete tail record after its newline arrives', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-rollout-tail-test-'));
+  const rolloutPath = path.join(dir, 'rollout.jsonl');
+  const baseline = [
+    JSON.stringify({ timestamp: '2026-08-03T00:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn_tail' } }),
+    JSON.stringify({ timestamp: '2026-08-03T00:00:00.100Z', type: 'event_msg', payload: { type: 'agent_message', message: '延迟换行的回复' } }),
+  ].join('\n');
+
+  try {
+    await fs.writeFile(rolloutPath, baseline, 'utf8');
+    const cursor = await createRolloutEventCursor(rolloutPath);
+    await fs.appendFile(rolloutPath, '\n', 'utf8');
+
+    const result = await readRolloutEventsFromCursor(
+      'tail_thread',
+      rolloutPath,
+      'tail_thread',
+      cursor,
+    );
+    assert.equal(result.events.length, 1);
+    assert.equal(result.events[0].event, 'item/completed');
+    assert.equal(result.events[0].turn_id, 'turn_tail');
+    assert.equal(result.events[0].payload.item.id, 'rollout_turn_tail_0001');
+    assert.equal(result.events[0].payload.item.text, '延迟换行的回复');
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('connected bridge discovers only newly appended desktop rollout events', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-external-monitor-test-'));
@@ -98,6 +174,66 @@ test('connected bridge discovers only newly appended desktop rollout events', as
       && message.turn_id === 'turn_new'
     )).length, 1);
     assert.equal(messages.some((message) => message.payload?.item?.text === '旧回复'), false);
+  } finally {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+      await once(ws, 'close');
+    }
+    await bridge.stop();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('rollout monitor reads replacement content after the rollout file shrinks', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-external-rotation-test-'));
+  const rolloutPath = path.join(dir, 'rollout.jsonl');
+  await fs.writeFile(
+    rolloutPath,
+    rolloutLines('turn_old', '旧问题', `旧回复${'x'.repeat(4000)}`, '00'),
+    'utf8',
+  );
+
+  const backend = new ExternalThreadBackend({
+    id: 'desktop_thread_rotation',
+    sessionId: 'desktop_thread_rotation',
+    preview: '轮转会话',
+    name: '轮转会话',
+    createdAt: 1,
+    updatedAt: 2,
+    status: { type: 'idle' },
+    path: rolloutPath,
+    cwd: '/tmp/desktop-workspace',
+    turns: [],
+  });
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const bridge = new BridgeServer({
+    backend,
+    store,
+    host: '127.0.0.1',
+    port: 0,
+    token: 'test-token',
+    externalSessionPollIntervalMs: 25,
+  });
+  await bridge.start();
+  const ws = new WebSocket(`ws://127.0.0.1:${bridge.address().port}/ws?token=test-token`);
+  const messages = [];
+  ws.on('message', (buffer) => messages.push(JSON.parse(buffer.toString('utf8'))));
+
+  try {
+    await once(ws, 'open');
+    await waitFor(() => backend.listCalls >= 2);
+    await fs.writeFile(
+      rolloutPath,
+      rolloutLines('turn_replaced', '新问题', '替换后的回复', '10'),
+      'utf8',
+    );
+    backend.thread.updatedAt = 3;
+
+    await waitFor(() => messages.some((message) => (
+      message.event === 'item/completed'
+      && message.payload?.item?.text === '替换后的回复'
+    )));
+    assert.equal(messages.some((message) => message.payload?.item?.text?.startsWith('旧回复')), false);
   } finally {
     if (ws.readyState === WebSocket.OPEN) {
       ws.close();

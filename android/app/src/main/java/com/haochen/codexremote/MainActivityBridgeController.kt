@@ -80,6 +80,7 @@ internal fun MainActivity.disconnectBridge(
         pendingRequests.clear()
         currentBridgeUrl = null
         selectedWorkspace = null
+        projectDirectoryPickerState = null
         if (switchToConnectionPage) {
             currentPage = AppPage.Connection
         }

@@ -562,7 +562,7 @@ internal fun MainActivity.HistoryConnectionCard(
                 expanded = actionsExpanded,
                 onDismissRequest = { actionsExpanded = false },
                 modifier = Modifier.align(Alignment.TopEnd),
-                containerColor = uiSurfaceAlt,
+                containerColor = uiSurface,
                 tonalElevation = 0.dp,
                 shadowElevation = 10.dp,
                 border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),

@@ -123,6 +123,8 @@ export function summarizeClientPayload(type, payload = {}) {
       };
     case 'model.list':
       return { includeHidden: payload.includeHidden ?? null };
+    case 'directory.list':
+      return { path: payload.path ?? '' };
     default:
       return {};
   }

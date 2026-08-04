@@ -23,6 +23,7 @@ import {
   writeSessionImageUpload,
   clampMaxBytes,
 } from './bridge/file-reader.mjs';
+import { listDirectories } from './bridge/directory-reader.mjs';
 import { SessionContentController } from './bridge/session-content-controller.mjs';
 import { ExternalSessionMonitor } from './bridge/external-session-monitor.mjs';
 import {
@@ -459,6 +460,16 @@ export class BridgeServer extends EventEmitter {
         const data = Array.isArray(listed) ? listed : listed?.data ?? [];
         const nextCursor = Array.isArray(listed) ? null : listed?.nextCursor ?? null;
         ws.send(JSON.stringify(createResponse(id, { data, nextCursor })));
+        return;
+      }
+      case 'directory.list': {
+        const result = await listDirectories(payload.path);
+        ws.send(JSON.stringify(createResponse(id, {
+          path: result.resolvedPath,
+          parent_path: result.parentPath,
+          directories: result.directories,
+          truncated: result.truncated,
+        })));
         return;
       }
       case 'collaboration_mode.list': {

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 internal fun MainActivity.NewChatSheet(
     draft: NewChatDraft,
     onDismiss: () -> Unit,
+    onProjectPathClick: () -> Unit,
     onModelChange: (String) -> Unit,
     onReasoningEffortChange: (String) -> Unit,
     onApprovalPolicyChange: (String) -> Unit,
@@ -100,12 +101,44 @@ internal fun MainActivity.NewChatSheet(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = draft.projectPath ?: "先选项目，再选模型、思考强度、审批策略和沙箱。",
+                text = "设置项目目录、模型、思考强度、审批策略和沙箱。",
                 color = uiMuted,
                 fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label("项目目录")
+            OutlinedButton(
+                onClick = onProjectPathClick,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = workspaceDisplayName(draft.projectPath, fallback = "Bridge 默认目录"),
+                            color = uiText,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = draft.projectPath ?: "点击选择远程主机上的项目目录",
+                            color = uiMuted,
+                            fontSize = 11.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text("›", color = uiMuted, fontSize = 20.sp)
+                }
+            }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

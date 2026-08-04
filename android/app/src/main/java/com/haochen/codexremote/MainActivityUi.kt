@@ -307,10 +307,17 @@ internal fun MainActivity.RemoteApp() {
         }
 
         newChatDraft?.let { draft ->
-            AppCenteredDialog(onDismiss = { newChatDraft = null }) {
+            AppCenteredDialog(onDismiss = {
+                projectDirectoryPickerState = null
+                newChatDraft = null
+            }) {
                 NewChatSheet(
                     draft = draft,
-                    onDismiss = { newChatDraft = null },
+                    onDismiss = {
+                        projectDirectoryPickerState = null
+                        newChatDraft = null
+                    },
+                    onProjectPathClick = { openProjectDirectoryPicker() },
                     onModelChange = { model ->
                         newChatDraft =
                             draft.copy(
@@ -329,6 +336,7 @@ internal fun MainActivity.RemoteApp() {
                             approvalPolicy = draft.approvalPolicy,
                             sandbox = draft.sandbox,
                         )
+                        projectDirectoryPickerState = null
                         newChatDraft = null
                         scope.launch {
                             drawerState.close()
@@ -336,6 +344,16 @@ internal fun MainActivity.RemoteApp() {
                     },
                 )
             }
+        }
+
+        projectDirectoryPickerState?.let { state ->
+            ProjectDirectoryPickerDialog(
+                state = state,
+                recentPaths = recentProjectDirectoryPaths(),
+                onDismiss = { closeProjectDirectoryPicker() },
+                onBrowse = { path -> requestProjectDirectories(path) },
+                onSelect = { selectCurrentProjectDirectory() },
+            )
         }
 
         sessionInfoSheetState?.let { state ->

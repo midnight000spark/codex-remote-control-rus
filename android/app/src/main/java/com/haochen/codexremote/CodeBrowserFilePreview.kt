@@ -23,8 +23,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,6 +59,12 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
         )
         when (content.kind) {
             CodeBrowserFileKind.Text -> {
+                val documentPreviewKind = remember(content.resolvedPath, content.mimeType) {
+                    content.documentPreviewKind()
+                }
+                var documentViewMode by remember(content.sessionId, content.resolvedPath) {
+                    mutableStateOf(CodeBrowserDocumentViewMode.Source)
+                }
                 if (content.truncated) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -68,7 +77,7 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "当前仅预览前 ${formatCodeBrowserFileSize(content.bytes.toLong())}",
+                                text = "当前仅加载前 ${formatCodeBrowserFileSize(content.bytes.toLong())}",
                                 color = uiMuted,
                                 fontSize = 11.sp,
                                 modifier = Modifier.weight(1f),
@@ -82,15 +91,49 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                         }
                     }
                 }
-                CodeBrowserTextPane(
-                    text = content.content,
-                    mode = CodeTextMode.File,
-                    pathHint = content.resolvedPath,
-                    scrollToLine = state.selectedLine,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                )
+                if (documentPreviewKind != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CodeBrowserModeButton(
+                            text = "源码",
+                            selected = documentViewMode == CodeBrowserDocumentViewMode.Source,
+                            modifier = Modifier.weight(1f),
+                            onClick = { documentViewMode = CodeBrowserDocumentViewMode.Source },
+                        )
+                        CodeBrowserModeButton(
+                            text = "预览",
+                            selected = documentViewMode == CodeBrowserDocumentViewMode.Preview,
+                            enabled = !content.truncated,
+                            modifier = Modifier.weight(1f),
+                            onClick = { documentViewMode = CodeBrowserDocumentViewMode.Preview },
+                        )
+                    }
+                }
+                if (
+                    documentPreviewKind != null &&
+                    documentViewMode == CodeBrowserDocumentViewMode.Preview &&
+                    !content.truncated
+                ) {
+                    CodeBrowserDocumentPreview(
+                        content = content,
+                        kind = documentPreviewKind,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    )
+                } else {
+                    CodeBrowserTextPane(
+                        text = content.content,
+                        mode = CodeTextMode.File,
+                        pathHint = content.resolvedPath,
+                        scrollToLine = state.selectedLine,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    )
+                }
             }
 
             CodeBrowserFileKind.Image -> {

@@ -728,6 +728,139 @@ test('bridge preserves top-level model metadata from session start responses', a
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test('bridge preserves the latest turn model and effort when backend thread summaries stay unchanged', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-turn-model-test-'));
+
+  class FixedThreadModelBackend extends EventEmitter {
+    async start() {}
+
+    async stop() {}
+
+    async startThread(params = {}) {
+      return {
+        id: 'fixed_model_thread_1',
+        sessionId: 'fixed_model_thread_1',
+        preview: params.title ?? 'Fixed model session',
+        name: params.title ?? 'Fixed model session',
+        model: params.model ?? 'gpt-5.6-luna',
+        reasoningEffort: 'high',
+        modelProvider: 'custom',
+        cwd: params.cwd ?? '/tmp',
+        createdAt: 1,
+        updatedAt: 2,
+        status: { type: 'idle' },
+        turns: [],
+      };
+    }
+
+    async listThreads() {
+      return [{
+        id: 'fixed_model_thread_1',
+        sessionId: 'fixed_model_thread_1',
+        preview: 'Fixed model session',
+        name: 'Fixed model session',
+        model: 'gpt-5.6-luna',
+        reasoningEffort: 'high',
+        modelProvider: 'custom',
+        cwd: '/tmp',
+        createdAt: 1,
+        updatedAt: 2,
+        status: { type: 'notLoaded' },
+        turns: [],
+      }];
+    }
+
+    async resumeThread(threadId) {
+      return {
+        id: threadId,
+        sessionId: threadId,
+        preview: 'Fixed model session',
+        name: 'Fixed model session',
+        model: 'gpt-5.6-luna',
+        reasoningEffort: 'high',
+        modelProvider: 'custom',
+        cwd: '/tmp',
+        createdAt: 1,
+        updatedAt: 2,
+        status: { type: 'idle' },
+        turns: [],
+      };
+    }
+
+    async startTurn(threadId) {
+      return {
+        id: `turn_${threadId}`,
+        items: [],
+        itemsView: 'summary',
+        status: 'inProgress',
+        error: null,
+        startedAt: 1,
+        completedAt: null,
+        durationMs: null,
+      };
+    }
+  }
+
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const bridge = new BridgeServer({
+    backend: new FixedThreadModelBackend(),
+    store,
+    host: '127.0.0.1',
+    port: 0,
+    token: 'test-token',
+  });
+  await bridge.start();
+  const { port } = bridge.address();
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=test-token`);
+  await once(ws, 'open');
+  const messages = [];
+  ws.on('message', (buffer) => {
+    messages.push(JSON.parse(buffer.toString('utf8')));
+  });
+
+  ws.send(JSON.stringify({
+    id: '1',
+    type: 'session.start',
+    payload: { title: 'Fixed model session', model: 'gpt-5.6-luna' },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '1'));
+  const sessionId = messages.find((m) => m.type === 'response' && m.id === '1').payload.session.session_id;
+
+  ws.send(JSON.stringify({
+    id: '2',
+    type: 'turn.send',
+    payload: {
+      session_id: sessionId,
+      text: 'use sol with xhigh',
+      model: 'gpt-5.6-sol',
+      effort: 'xhigh',
+    },
+  }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '2'));
+  assert.equal(store.getSession(sessionId).model, 'gpt-5.6-sol');
+  assert.equal(store.getSession(sessionId).modelOverride, true);
+  assert.equal(store.getSession(sessionId).reasoningEffort, 'xhigh');
+  assert.equal(store.getSession(sessionId).reasoningEffortOverride, true);
+
+  ws.send(JSON.stringify({ id: '3', type: 'session.list', payload: {} }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '3'));
+  const sessionList = messages.find((m) => m.type === 'response' && m.id === '3');
+  assert.equal(sessionList.payload.sessions[0].model, 'gpt-5.6-sol');
+  assert.equal(sessionList.payload.sessions[0].reasoningEffort, 'xhigh');
+
+  ws.send(JSON.stringify({ id: '4', type: 'session.content', payload: { session_id: sessionId } }));
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '4'));
+  const content = messages.find((m) => m.type === 'response' && m.id === '4');
+  assert.equal(content.payload.session.model, 'gpt-5.6-sol');
+  assert.equal(content.payload.session.reasoningEffort, 'xhigh');
+
+  ws.close();
+  await once(ws, 'close');
+  await bridge.stop();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 test('session content skips thread.read for brand-new sessions without rollout or turns', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-empty-session-test-'));
 

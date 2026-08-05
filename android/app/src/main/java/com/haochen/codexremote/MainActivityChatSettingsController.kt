@@ -32,16 +32,7 @@ internal fun MainActivity.chatReasoningEffortOptions(modelId: String): List<Sele
 }
 
 internal fun MainActivity.reasoningEffortShortLabel(effort: String): String {
-    return when (effort.trim()) {
-        "" -> "默认"
-        "none" -> "无"
-        "minimal" -> "极简"
-        "low" -> "低"
-        "medium" -> "中"
-        "high" -> "高"
-        "xhigh" -> "极高"
-        else -> effort.ifBlank { "默认" }
-    }
+    return effort.trim().ifBlank { "默认" }
 }
 
 internal fun MainActivity.reasoningSummaryOptions(): List<SelectionMenuOption> {

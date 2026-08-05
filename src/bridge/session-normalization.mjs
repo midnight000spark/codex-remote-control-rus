@@ -12,7 +12,9 @@ export function mergeSessionSummary(summary, stored) {
     thread_id: summary.thread_id ?? stored.thread_id ?? summary.session_id,
     title: firstNonEmptyString(summary.title, stored.title),
     cwd: firstNonEmptyString(summary.cwd, stored.cwd),
-    model: firstNonEmptyString(summary.model, stored.model),
+    model: stored.modelOverride && firstNonEmptyString(stored.model)
+      ? stored.model
+      : firstNonEmptyString(summary.model, stored.model),
     preview: firstNonEmptyString(summary.preview, stored.preview),
     backend: firstNonEmptyString(summary.backend, stored.backend),
     createdAt: firstNonEmptyString(summary.createdAt, stored.createdAt),
@@ -20,6 +22,10 @@ export function mergeSessionSummary(summary, stored) {
     active: summary.active ?? stored.active ?? true,
     thread: clone(summary.thread ?? stored.thread ?? null),
   };
+
+  if (stored.modelOverride) {
+    merged.modelOverride = true;
+  }
 
   if (summary.approvalPolicy != null && !(typeof summary.approvalPolicy === 'string' && summary.approvalPolicy.trim() === '')) {
     merged.approvalPolicy = clone(summary.approvalPolicy);
@@ -62,7 +68,10 @@ export function mergeSessionSummary(summary, stored) {
     merged.totalTokenUsage = clone(stored.totalTokenUsage);
   }
 
-  if (summary.reasoningEffort != null && !(typeof summary.reasoningEffort === 'string' && summary.reasoningEffort.trim() === '')) {
+  if (stored.reasoningEffortOverride && firstNonEmptyString(stored.reasoningEffort)) {
+    merged.reasoningEffort = clone(stored.reasoningEffort);
+    merged.reasoningEffortOverride = true;
+  } else if (summary.reasoningEffort != null && !(typeof summary.reasoningEffort === 'string' && summary.reasoningEffort.trim() === '')) {
     merged.reasoningEffort = clone(summary.reasoningEffort);
   } else if (stored.reasoningEffort != null) {
     merged.reasoningEffort = clone(stored.reasoningEffort);

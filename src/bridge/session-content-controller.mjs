@@ -73,8 +73,9 @@ export class SessionContentController {
       persistExtendedHistory: false,
     });
     const normalized = normalizeThreadSummary(resumed, backendName(this.backend));
-    await this.store.upsertSession(normalized);
-    return { session: normalized, resumed };
+    const merged = mergeSessionSummary(normalized, session);
+    await this.store.upsertSession(merged);
+    return { session: merged, resumed };
   }
 
   async refreshSessionHistory(sessionId, sinceSeq, options = {}) {

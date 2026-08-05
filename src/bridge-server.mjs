@@ -541,7 +541,9 @@ export class BridgeServer extends EventEmitter {
         return;
       }
       case 'session.resume': {
-        const resumed = await this.backend.resumeThread(payload.session_id ?? payload.thread_id, {
+        const sessionId = payload.session_id ?? payload.thread_id;
+        const stored = this.store.getSession(sessionId);
+        const resumed = await this.backend.resumeThread(sessionId, {
           threadId: payload.thread_id ?? payload.session_id,
           history: payload.history ?? null,
           path: payload.path ?? null,
@@ -560,7 +562,10 @@ export class BridgeServer extends EventEmitter {
           excludeTurns: payload.excludeTurns ?? null,
           persistExtendedHistory: payload.persistExtendedHistory ?? false,
         });
-        const session = normalizeThreadSummary(resumed, backendName(this.backend));
+        const session = mergeSessionSummary(
+          normalizeThreadSummary(resumed, backendName(this.backend)),
+          stored,
+        );
         await this.store.upsertSession(session);
         ws.send(JSON.stringify(createResponse(id, { session })));
         return;
@@ -680,6 +685,20 @@ export class BridgeServer extends EventEmitter {
           turn = await this.backend.startTurn(targetThreadId, turnParams);
         }
         const startedTurn = turn?.turn ?? turn;
+        if (turnParams.model || turnParams.effort) {
+          const sessionSettings = {
+            session_id: sessionId,
+          };
+          if (turnParams.model) {
+            sessionSettings.model = turnParams.model;
+            sessionSettings.modelOverride = true;
+          }
+          if (turnParams.effort) {
+            sessionSettings.reasoningEffort = turnParams.effort;
+            sessionSettings.reasoningEffortOverride = true;
+          }
+          session = await this.store.upsertSession(sessionSettings);
+        }
         if (startedTurn?.id) {
           const attachedInputEvent = await this.store.attachTurnIdToRequestEvent(sessionId, id, startedTurn.id);
           if (attachedInputEvent) {

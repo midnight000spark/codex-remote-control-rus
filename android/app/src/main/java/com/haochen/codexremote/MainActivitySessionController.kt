@@ -540,7 +540,7 @@ internal fun MainActivity.reasoningEffortOptionsForModel(modelId: String): List<
                 SelectionMenuOption(
                     value = option.effort,
                     label = reasoningEffortMenuLabel(option.effort),
-                    supporting = option.description.ifBlank { reasoningEffortDescription(option.effort) },
+                    supporting = reasoningEffortDescription(option.effort),
                 )
             }
         }
@@ -588,16 +588,7 @@ internal fun MainActivity.normalizeReasoningEffortForModel(
     }
 
 internal fun MainActivity.reasoningEffortMenuLabel(effort: String): String {
-        return when (effort.trim()) {
-            "" -> "默认"
-            "none" -> "关闭思考 (none)"
-            "minimal" -> "极低 (minimal)"
-            "low" -> "低 (low)"
-            "medium" -> "中 (medium)"
-            "high" -> "高 (high)"
-            "xhigh" -> "极高 (xhigh)"
-            else -> effort.ifBlank { "未提供" }
-        }
+        return effort.trim().ifBlank { "默认" }
     }
 
 internal fun MainActivity.reasoningEffortDescription(effort: String): String {
@@ -607,7 +598,9 @@ internal fun MainActivity.reasoningEffortDescription(effort: String): String {
             "low" -> "较轻推理，适合常规问答和小改动。"
             "medium" -> "速度和质量更平衡，适合大多数任务。"
             "high" -> "更多推理，适合复杂实现和排查。"
-            "xhigh" -> "最深推理，适合难题，但通常更慢。"
+            "xhigh" -> "额外高强度推理，适合更复杂的问题。"
+            "max" -> "最大推理深度，适合最困难的问题。"
+            "ultra" -> "最大推理深度，并允许自动委派任务。"
             else -> "按该模型支持的思考强度原样下发。"
         }
     }

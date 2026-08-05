@@ -101,15 +101,19 @@ private fun MainActivity.maybeNotifyTurnCompleted(sessionId: String, payload: JS
         payload.optJSONObject("turn")?.optString("status", "").orEmpty(),
     )
     if (notificationMode == NotificationMode.AnyMessage && status !in TURN_FAILURE_STATUSES) return
-    val title = when (status) {
-        "failed" -> "任务失败"
-        "interrupted", "cancelled", "canceled" -> "任务已中断"
+    val error = payload.optJSONObject("error")
+        ?: payload.optJSONObject("turn")?.optJSONObject("error")
+    val backendConnectionFailure = isBackendConnectionFailure(error)
+    val title = when {
+        backendConnectionFailure -> "Codex 连接失败"
+        status == "failed" -> "任务失败"
+        status in TURN_FAILURE_STATUSES -> "任务已中断"
         else -> "任务已完成"
     }
     postCodexNotification(
         sessionId = sessionId,
         title = title,
-        content = notificationSessionTitle(sessionId),
+        content = if (backendConnectionFailure) turnErrorDisplayText(error) else notificationSessionTitle(sessionId),
         category = Notification.CATEGORY_STATUS,
     )
 }

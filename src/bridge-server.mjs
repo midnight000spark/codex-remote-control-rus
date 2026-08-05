@@ -10,6 +10,7 @@ import { createError, createResponse, createEvent, nowIso } from './protocol.mjs
 import {
   backendName,
   getTurnInputItemId,
+  normalizeTurnStatusValue,
   requestKey,
   safeJson,
   summarizeApprovalPayload,
@@ -88,6 +89,38 @@ function historyCutoffMillis(months) {
   const daysInTargetMonth = new Date(Date.UTC(cutoff.getUTCFullYear(), cutoff.getUTCMonth() + 1, 0)).getUTCDate();
   cutoff.setUTCDate(Math.min(targetDay, daysInTargetMonth));
   return cutoff.getTime();
+}
+
+function isBackendConnectionError(error) {
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return false;
+  const connectionErrorKinds = new Set([
+    'httpConnectionFailed',
+    'responseStreamConnectionFailed',
+    'responseStreamDisconnected',
+    'responseTooManyFailedAttempts',
+  ]);
+  const errorInfo = error.codexErrorInfo;
+  if (errorInfo && typeof errorInfo === 'object' && !Array.isArray(errorInfo)) {
+    if (Object.keys(errorInfo).some((key) => connectionErrorKinds.has(key))) {
+      return true;
+    }
+  }
+  const detail = [error.code, error.message, error.additionalDetails]
+    .filter((value) => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+  return detail.includes('request timed out')
+    || detail.includes('connection timed out')
+    || detail.includes('response stream disconnected')
+    || detail.includes('reconnecting...');
+}
+
+function buildBackendConnectionFailure(error) {
+  return {
+    ...error,
+    bridgeErrorCode: 'backend_connection_failed',
+    userMessage: '电脑端 Codex 服务连接超时，请检查 VPN、代理或网络连接。',
+  };
 }
 
 export class BridgeServer extends EventEmitter {
@@ -894,10 +927,25 @@ export class BridgeServer extends EventEmitter {
 
   async #handleBackendMessage(message) {
     if (message?.type === 'notification') {
-      const payload = message.params ?? {};
+      let payload = message.params ?? {};
       const threadId = payload.threadId ?? payload.thread_id ?? payload.thread?.id ?? payload.thread?.threadId ?? payload.thread?.sessionId ?? null;
       const turnId = payload.turnId ?? payload.turn_id ?? payload.turn?.id ?? null;
       const sessionId = threadId ?? payload.sessionId ?? payload.session_id ?? null;
+      if (message.method === 'turn/completed') {
+        const connectionError = this.#terminalTurnConnectionError(sessionId, turnId, payload);
+        if (connectionError) {
+          payload = {
+            ...payload,
+            error: connectionError,
+            turn: {
+              ...(payload.turn ?? {}),
+              id: payload.turn?.id ?? turnId,
+              status: payload.turn?.status ?? payload.status,
+              error: connectionError,
+            },
+          };
+        }
+      }
       if (message.method === 'serverRequest/resolved') {
         this.#logApproval('server_request.resolved', {
           request_id: requestKey(payload.requestId ?? payload.request_id),
@@ -1042,6 +1090,25 @@ export class BridgeServer extends EventEmitter {
       || eventName === 'item/permissions/requestApproval'
       || eventName === 'applyPatchApproval'
       || eventName === 'execCommandApproval';
+  }
+
+  #terminalTurnConnectionError(sessionId, turnId, payload) {
+    const status = normalizeTurnStatusValue(payload?.status ?? payload?.turn?.status);
+    if (!sessionId || !turnId || !['failed', 'interrupted', 'cancelled', 'canceled'].includes(status)) {
+      return null;
+    }
+    if (payload?.error || payload?.turn?.error) return null;
+
+    const events = this.store.getSession(sessionId)?.events ?? [];
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      if ((event?.turn_id ?? '') !== turnId || event?.event !== 'error') continue;
+      const error = event?.payload?.error;
+      if (isBackendConnectionError(error)) {
+        return buildBackendConnectionFailure(error);
+      }
+    }
+    return null;
   }
 
   #compileApprovalResult(payload) {

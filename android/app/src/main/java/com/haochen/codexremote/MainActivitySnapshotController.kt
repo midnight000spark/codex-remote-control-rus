@@ -109,7 +109,8 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
 internal fun MainActivity.buildConversationSnapshotTurnStatus(entry: JSONObject): ConversationItem? {
         val turnId = entry.optProtocolString("turn_id")
         val status = entry.optString("status", "").trim()
-        val errorText = extractErrorText(entry.optJSONObject("error"))
+        val error = entry.optJSONObject("error")
+        val errorText = turnErrorDisplayText(error)
         if (status == "interrupted" && errorText.isBlank()) {
             return null
         }
@@ -118,11 +119,15 @@ internal fun MainActivity.buildConversationSnapshotTurnStatus(entry: JSONObject)
         }
         return ConversationItem.SystemNote(
             id = buildConversationItemId("turn_status", turnId.ifBlank { "unknown" }),
-            text = buildString {
-                append("当前回合结束: ${if (status.isNotBlank()) status else "unknown"}")
-                if (errorText.isNotBlank()) {
-                    append('\n')
-                    append(errorText)
+            text = if (isBackendConnectionFailure(error)) {
+                errorText
+            } else {
+                buildString {
+                    append("当前回合结束: ${if (status.isNotBlank()) status else "unknown"}")
+                    if (errorText.isNotBlank()) {
+                        append('\n')
+                        append(errorText)
+                    }
                 }
             },
             itemKey = turnId.takeIf { it.isNotBlank() },

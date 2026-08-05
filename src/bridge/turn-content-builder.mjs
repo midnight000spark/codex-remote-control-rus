@@ -384,7 +384,7 @@ export class TurnContentBuilder {
           thread_id: threadId,
           turn_id: turn.id,
           status: turnStatus,
-          error: turn.error ?? null,
+          error: turn.error ?? this.#storedTurnError(sessionId, turn.id) ?? null,
         });
       }
     }
@@ -572,7 +572,7 @@ export class TurnContentBuilder {
         thread_id: threadId,
         turn_id: turnId,
         status: turnStatus,
-        error: turn.error ?? null,
+        error: turn.error ?? this.#storedTurnError(sessionId, turnId) ?? null,
       });
     }
 
@@ -679,7 +679,7 @@ export class TurnContentBuilder {
       items,
       itemsView: 'full',
       status: this.#storedTurnStatus(sessionId, turnId),
-      error: null,
+      error: this.#storedTurnError(sessionId, turnId),
       startedAt: null,
       completedAt: null,
       durationMs: null,
@@ -698,6 +698,16 @@ export class TurnContentBuilder {
       }
     }
     return status;
+  }
+
+  #storedTurnError(sessionId, turnId) {
+    const session = this.store.getSession(sessionId);
+    let error = null;
+    for (const event of session?.events ?? []) {
+      if ((event?.turn_id ?? '') !== turnId || event?.event !== 'turn/completed') continue;
+      error = event?.payload?.error ?? event?.payload?.turn?.error ?? error;
+    }
+    return error;
   }
 
   #turnHasCompletedAssistantEvent(sessionId, turnId) {

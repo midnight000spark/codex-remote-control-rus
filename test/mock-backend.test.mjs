@@ -164,6 +164,126 @@ test('mock backend produces events and approval flow', async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test('bridge persists backend connection failures on interrupted turns', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-backend-connection-test-'));
+
+  class ConnectionFailureBackend extends EventEmitter {
+    async start() {}
+
+    async stop() {}
+
+    async readThread() {
+      return {
+        thread: {
+          id: 'connection_failure_thread',
+          sessionId: 'connection_failure_thread',
+          status: { type: 'idle' },
+          turns: [{
+            id: 'connection_failure_turn',
+            items: [{
+              type: 'userMessage',
+              id: 'connection_failure_user',
+              content: [{ type: 'text', text: 'hello', text_elements: [] }],
+            }],
+            itemsView: 'full',
+            status: 'interrupted',
+            error: null,
+            startedAt: 1,
+            completedAt: 2,
+            durationMs: 1,
+          }],
+        },
+      };
+    }
+  }
+
+  const store = new StateStore(path.join(dir, 'state.json'));
+  await store.load();
+  await store.upsertSession({
+    session_id: 'connection_failure_thread',
+    thread_id: 'connection_failure_thread',
+    title: 'Connection failure',
+    cwd: '/tmp',
+    model: 'gpt-5',
+    backend: 'mock',
+    preview: 'hello',
+    active: true,
+    thread: {
+      id: 'connection_failure_thread',
+      sessionId: 'connection_failure_thread',
+      status: { type: 'active' },
+      turns: [],
+    },
+  });
+
+  const backend = new ConnectionFailureBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: 'test-token' });
+  await bridge.start();
+  const { port } = bridge.address();
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=test-token`);
+  await once(ws, 'open');
+
+  const messages = [];
+  ws.on('message', (buffer) => {
+    messages.push(JSON.parse(buffer.toString('utf8')));
+  });
+
+  backend.emit('message', {
+    type: 'notification',
+    method: 'error',
+    params: {
+      threadId: 'connection_failure_thread',
+      turnId: 'connection_failure_turn',
+      error: {
+        message: 'Reconnecting... 5/5',
+        codexErrorInfo: {
+          responseStreamDisconnected: { httpStatusCode: null },
+        },
+        additionalDetails: 'request timed out',
+      },
+    },
+  });
+  await waitFor(() => messages.find((message) => message.type === 'event' && message.event === 'error'));
+
+  backend.emit('message', {
+    type: 'notification',
+    method: 'turn/completed',
+    params: {
+      threadId: 'connection_failure_thread',
+      turnId: 'connection_failure_turn',
+      status: 'interrupted',
+      turn: {
+        id: 'connection_failure_turn',
+        status: 'interrupted',
+      },
+    },
+  });
+  await waitFor(() => messages.find((message) => message.type === 'event' && message.event === 'turn/completed'));
+
+  const completed = messages.find((message) => message.type === 'event' && message.event === 'turn/completed');
+  assert.equal(completed.payload.error.bridgeErrorCode, 'backend_connection_failed');
+  assert.equal(completed.payload.error.userMessage, '电脑端 Codex 服务连接超时，请检查 VPN、代理或网络连接。');
+
+  ws.send(JSON.stringify({
+    id: 'content',
+    type: 'session.content',
+    payload: { session_id: 'connection_failure_thread' },
+  }));
+  await waitFor(() => messages.find((message) => message.type === 'response' && message.id === 'content'));
+
+  const content = messages.find((message) => message.type === 'response' && message.id === 'content');
+  const turnStatus = content.payload.entries.find((entry) => (
+    entry.type === 'turn_status' && entry.turn_id === 'connection_failure_turn'
+  ));
+  assert.equal(turnStatus.status, 'interrupted');
+  assert.equal(turnStatus.error.bridgeErrorCode, 'backend_connection_failed');
+
+  ws.close();
+  await once(ws, 'close');
+  await bridge.stop();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 test('bridge exposes collaboration modes and thread goal lifecycle', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-goal-test-'));
   const store = new StateStore(path.join(dir, 'state.json'));

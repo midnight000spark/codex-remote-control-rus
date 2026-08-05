@@ -149,6 +149,15 @@ internal fun connectionFailureSupportingText(detail: String): String? {
         }
     }
 
+internal fun isBackendConnectionFailure(error: JSONObject?): Boolean {
+        return error?.optString("bridgeErrorCode", "") == "backend_connection_failed"
+    }
+
+internal fun MainActivity.turnErrorDisplayText(error: JSONObject?): String {
+        val userMessage = error?.optString("userMessage", "")?.trim().orEmpty()
+        return userMessage.ifBlank { extractErrorText(error) }
+    }
+
 
 
 internal fun shortId(value: String?): String {

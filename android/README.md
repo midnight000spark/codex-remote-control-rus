@@ -10,6 +10,11 @@
 - 发送消息到 `turn.send`
 - 流式接收 `item/agentMessage/delta`
 - 审批卡片与 `approval.response`
+- 协作模式、会话目标、模型、推理强度和沙盒设置
+- 图片发送、查看、复制与保存
+- Markdown、HTML、图片和二进制文件预览或下载
+- 后台、跨会话、审批和任务完成通知
+- 新会话远程项目目录选择
 - 聊天 WebView 基于 `conversationItems` 做增量 DOM patch
 - 会话恢复时按快照恢复聊天滚动位置
 - 键盘弹出和视口变化时尽量保持当前阅读位置稳定
@@ -31,7 +36,7 @@ bash android/scripts/build-apk.sh
 Debug 产物：
 
 ```text
-android/app/build/outputs/apk/debug/codex-remote-control-v0.1.0-debug.apk
+android/app/build/outputs/apk/debug/codex-remote-control-v0.2.0-debug.apk
 ```
 
 Release APK:
@@ -43,7 +48,7 @@ bash android/scripts/build-release-apk.sh
 Release 产物：
 
 ```text
-android/app/build/outputs/apk/release/codex-remote-control-v0.1.0-release.apk
+android/app/build/outputs/apk/release/codex-remote-control-v0.2.0-release.apk
 ```
 
 Debug 和 release APK 都使用本机 `android/release.keystore` 签名，后续升级必须继续使用同一份 keystore 和 `release-signing.properties`。

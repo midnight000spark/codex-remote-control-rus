@@ -16,7 +16,11 @@ Codex Remote Control 是一个自用的 Codex 手机远程控制方案：主机�
 - 查看、切换、恢复 Codex 会话
 - 发送消息并流式查看助手回复
 - 处理审批请求和文件变更
-- 浏览代码文件、diff 和会话变更
+- 配置协作模式、会话目标、模型、推理强度和沙盒
+- 发送、查看、保存图片和其他会话文件
+- 浏览代码、diff、Markdown、HTML、图片、二进制文件并安装 APK
+- 接收后台、跨会话、审批和任务完成通知
+- 新建会话时选择远程项目目录
 - 备份和恢复连接信息与本地设置
 - Node.js bridge 对接 `codex app-server --listen stdio://`
 - Mock backend 支持本地测试和 Android UI 开发
@@ -65,7 +69,7 @@ npm run apk
 规范命名产物：
 
 ```text
-android/app/build/outputs/apk/debug/codex-remote-control-v0.1.0-debug.apk
+android/app/build/outputs/apk/debug/codex-remote-control-v0.2.0-debug.apk
 ```
 
 构建 release APK：
@@ -77,7 +81,7 @@ npm run apk:release
 release 产物：
 
 ```text
-android/app/build/outputs/apk/release/codex-remote-control-v0.1.0-release.apk
+android/app/build/outputs/apk/release/codex-remote-control-v0.2.0-release.apk
 ```
 
 debug 和 release APK 都使用本机 `android/release.keystore` 签名，因此使用同一包名和同一签名时可以共享 app 数据并互相覆盖升级。请妥善备份 `android/release.keystore` 和 `android/release-signing.properties`，后续升级必须继续使用同一份 key。
@@ -108,7 +112,7 @@ source ~/.zshrc && cd android && ./gradlew :app:compileDebugKotlin
 - [Approval Flow](docs/approval-flow.md)：审批请求/响应行为和排查方式
 - [Session Incremental Sync](docs/session-incremental-sync.md)：`session.sync` 设计和 fallback 规则
 - [Android README](android/README.md)：Android 客户端实现说明
-- [Changelog](CHANGELOG.md)：release note 和构建产物路径
+- [更新日志](CHANGELOG.zh-CN.md)：发布说明和构建产物路径
 
 ## Q&A
 

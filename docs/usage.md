@@ -123,7 +123,7 @@ npm run apk
 Output:
 
 ```text
-android/app/build/outputs/apk/debug/codex-remote-control-v0.1.0-debug.apk
+android/app/build/outputs/apk/debug/codex-remote-control-v0.2.0-debug.apk
 ```
 
 Build the release APK:
@@ -135,7 +135,7 @@ npm run apk:release
 Output:
 
 ```text
-android/app/build/outputs/apk/release/codex-remote-control-v0.1.0-release.apk
+android/app/build/outputs/apk/release/codex-remote-control-v0.2.0-release.apk
 ```
 
 Debug and release APKs are signed with the same local personal key in `android/release.keystore`.

@@ -7,7 +7,7 @@ The bridge exposes a small HTTP surface and a token-protected WebSocket protocol
 `GET /healthz`
 
 ```json
-{ "ok": true, "name": "codex-remote-control", "version": "0.1.0" }
+{ "ok": true, "name": "codex-remote-control", "version": "0.2.0" }
 ```
 
 `GET /v1/sessions`
@@ -40,7 +40,7 @@ The first server message is a hello payload:
   "ok": true,
   "payload": {
     "name": "codex-remote-control",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "server_time": "2026-05-24T00:00:00.000Z"
   }
 }

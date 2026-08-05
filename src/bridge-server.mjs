@@ -132,7 +132,7 @@ export class BridgeServer extends EventEmitter {
     token = null,
     bridgeId = null,
     name = 'codex-remote-control',
-    version = '0.1.0',
+    version = '0.2.0',
     syncLogPath = null,
     externalSessionPollIntervalMs = 5000,
     externalSessionPollLimit = 50,

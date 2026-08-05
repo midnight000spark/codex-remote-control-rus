@@ -19,7 +19,11 @@ This project is designed for personal/private-network use. It is not a hosted re
 - Token-protected WebSocket API
 - Session list, start, resume, content snapshot, and incremental sync
 - Streaming Codex events and approval request/response forwarding
-- Session-scoped file reads for Android code and diff browsing
+- Collaboration mode, thread goals, model/reasoning, and sandbox controls
+- Image upload, image messages, and session-scoped file downloads
+- Code, diff, Markdown, HTML, image, binary file, and APK handling
+- Background, cross-session, approval, and task-completion notifications
+- Remote project directory selection for new sessions
 - Android client built with Kotlin, Jetpack Compose, and OkHttp WebSocket
 
 ## Architecture
@@ -63,7 +67,7 @@ Build the Android debug APK:
 npm run apk
 ```
 
-Install `android/app/build/outputs/apk/debug/codex-remote-control-v0.1.0-debug.apk`, open the app, and paste the bridge URL.
+Install `android/app/build/outputs/apk/debug/codex-remote-control-v0.2.0-debug.apk`, open the app, and paste the bridge URL.
 Debug and release APKs use the same local personal signing key, so they can share app data and replace each other after the first install with that key.
 
 Build the Android release APK:
@@ -72,7 +76,7 @@ Build the Android release APK:
 npm run apk:release
 ```
 
-The release build outputs `android/app/build/outputs/apk/release/codex-remote-control-v0.1.0-release.apk`.
+The release build outputs `android/app/build/outputs/apk/release/codex-remote-control-v0.2.0-release.apk`.
 It is signed with the local personal key under `android/release.keystore`.
 
 More setup options are documented in [Usage](docs/usage.md).

@@ -37,7 +37,7 @@ val gitCommitShort =
     providers.exec {
         commandLine("git", "rev-parse", "--short", "HEAD")
     }.standardOutput.asText.get().trim().ifBlank { "unknown" }
-val appVersionName = "0.1.0"
+val appVersionName = "0.2.0"
 
 android {
     namespace = "com.haochen.codexremote"
@@ -47,7 +47,7 @@ android {
         applicationId = "com.haochen.codexremote"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = appVersionName
     }
 

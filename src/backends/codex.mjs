@@ -21,7 +21,7 @@ export class CodexBackend extends EventEmitter {
     experimental = true,
     requestTimeoutMs = 30000,
     clientName = 'codex-remote-control',
-    clientVersion = '0.1.0',
+    clientVersion = '0.2.0',
     protocolLogPath = null,
   } = {}) {
     super();

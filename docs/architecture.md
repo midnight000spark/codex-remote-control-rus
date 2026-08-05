@@ -78,3 +78,5 @@ Responsibilities are split by file:
 - `CodeBrowserModels.kt` and `CodeBrowserRendering.kt`: code browser parsing and rendering helpers
 
 The Android client keeps chat history in Kotlin-owned `conversationItems`. The WebView renders those items and may patch simple tail updates, but it is not a separate message store.
+
+See [Android Background Connection](android-background-connection.md) for the lifecycle and reliability boundaries of the Android WebSocket connection.

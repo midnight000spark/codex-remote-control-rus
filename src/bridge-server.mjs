@@ -646,8 +646,9 @@ export class BridgeServer extends EventEmitter {
           targetThreadId = ensured?.session?.thread_id ?? targetThreadId;
           turn = await this.backend.startTurn(targetThreadId, turnParams);
         }
-        if (turn?.id) {
-          const attachedInputEvent = await this.store.attachTurnIdToRequestEvent(sessionId, id, turn.id);
+        const startedTurn = turn?.turn ?? turn;
+        if (startedTurn?.id) {
+          const attachedInputEvent = await this.store.attachTurnIdToRequestEvent(sessionId, id, startedTurn.id);
           if (attachedInputEvent) {
             const { seq, at, ...boundInputEvent } = attachedInputEvent;
             const storedBoundInputEvent = await this.store.appendEvent(sessionId, {
@@ -658,7 +659,7 @@ export class BridgeServer extends EventEmitter {
           }
         }
         this.#emitSessionChanged(sessionId);
-        ws.send(JSON.stringify(createResponse(id, { turn, session_id: sessionId })));
+        ws.send(JSON.stringify(createResponse(id, { turn: startedTurn, session_id: sessionId })));
         return;
       }
       case 'turn.steer': {

@@ -279,12 +279,16 @@ private fun MainActivity.canReplaceConversationTurns(
     val incomingIds = incrementalItems.map { it.id }
     if (incomingIds.distinct().size != incomingIds.size) return false
 
+    val incomingUserSourceItemIds = incrementalItems.userSourceItemIds()
     val changedIds = conversationItems
         .filter { item -> item.snapshotTurnKey()?.let(changedTurnIds::contains) == true }
         .map { it.id }
         .toSet()
     val unchangedIds = conversationItems
-        .filterNot { item -> item.snapshotTurnKey()?.let(changedTurnIds::contains) == true }
+        .filterNot { item ->
+            item.snapshotTurnKey()?.let(changedTurnIds::contains) == true
+                || item.isUnboundUserInputShadowOf(incomingUserSourceItemIds)
+        }
         .map { it.id }
         .toSet()
 

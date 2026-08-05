@@ -144,7 +144,7 @@ internal fun MainActivity.appendUserInputBubble(
         }
         conversationItems.add(
             ConversationItem.Bubble(
-                id = buildConversationItemId("user", normalizedItemKey.ifBlank { normalizedTurnKey }, normalizedTurnKey),
+                id = buildUserConversationItemId(normalizedItemKey, normalizedTurnKey),
                 right = true,
                 text = normalizedText,
                 images = images,
@@ -180,6 +180,16 @@ internal fun MainActivity.buildConversationItemId(
             secondaryKey?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
         }
         return parts.joinToString("_") { sanitizeConversationItemIdPart(it) }
+    }
+
+internal fun MainActivity.buildUserConversationItemId(sourceItemId: String?, turnKey: String?): String {
+        val normalizedSourceItemId = normalizeProtocolString(sourceItemId)
+        val normalizedTurnKey = normalizeProtocolString(turnKey)
+        return if (normalizedSourceItemId.isNotBlank()) {
+            buildConversationItemId("user", normalizedSourceItemId)
+        } else {
+            buildConversationItemId("user", normalizedTurnKey, normalizedTurnKey)
+        }
     }
 
 internal fun sanitizeConversationItemIdPart(value: String): String {

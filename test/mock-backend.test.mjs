@@ -825,14 +825,16 @@ test('bridge broadcasts stored seq values and backfills turn ids for synced user
         }],
       };
       return {
-        id: 'turn_live_1',
-        items: [],
-        itemsView: 'summary',
-        status: 'inProgress',
-        error: null,
-        startedAt: 10,
-        completedAt: null,
-        durationMs: null,
+        turn: {
+          id: 'turn_live_1',
+          items: [],
+          itemsView: 'summary',
+          status: 'inProgress',
+          error: null,
+          startedAt: 10,
+          completedAt: null,
+          durationMs: null,
+        },
       };
     }
 
@@ -916,6 +918,10 @@ test('bridge broadcasts stored seq values and backfills turn ids for synced user
   assert.equal(storedInputEvents[0].turn_id, 'turn_live_1');
   assert.equal(storedInputEvents[1].turn_id, 'turn_live_1');
   assert.equal(storedInputEvents[1].replaces_seq, storedInputEvents[0].seq);
+
+  await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '2'));
+  const turnResponse = messages.find((m) => m.type === 'response' && m.id === '2');
+  assert.equal(turnResponse.payload.turn.id, 'turn_live_1');
 
   ws.send(JSON.stringify({ id: '3', type: 'session.sync', payload: { session_id: sessionId, since_seq: 0 } }));
   await waitFor(() => messages.find((m) => m.type === 'response' && m.id === '3'));

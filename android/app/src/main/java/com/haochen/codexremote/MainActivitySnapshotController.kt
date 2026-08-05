@@ -48,7 +48,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                 val images = extractThreadItemImages(item)
                 if (text.isBlank() && images.isEmpty()) return null
                 ConversationItem.Bubble(
-                    id = buildConversationItemId("user", itemId.ifBlank { turnId }, turnId),
+                    id = buildUserConversationItemId(itemId, turnId),
                     right = true,
                     text = text,
                     images = images,

@@ -10,12 +10,6 @@ The bridge exposes a small HTTP surface and a token-protected WebSocket protocol
 { "ok": true, "name": "codex-remote-control", "version": "0.2.0" }
 ```
 
-`GET /v1/sessions`
-
-```json
-{ "sessions": [] }
-```
-
 `GET /v1/image?session_id=SESSION_ID&path=PATH&token=TOKEN` returns a session image.
 
 `POST /v1/image?session_id=SESSION_ID&token=TOKEN` uploads an image using its `image/*` content type and returns a bridge-local path suitable for a Codex `localImage` input:
@@ -112,7 +106,7 @@ Backend notifications are broadcast as:
 | `turn.steer` | Send additional text to an active turn |
 | `turn.interrupt` | Interrupt a turn |
 | `approval.response` | Resolve a pending approval request |
-| `file.read` | Read a file relative to the session workspace or by absolute path |
+| `file.read` | Read a file inside the session workspace or the bridge uploads directory |
 
 ## Session Content
 
@@ -203,7 +197,11 @@ The response payload contains:
 
 `content_kind` is one of `text`, `image`, `pdf`, `audio`, `video`, or `binary`. Only text files include
 preview content in the WebSocket response. `bytes` is the UTF-8 preview size, while `size` is the full
-file size. Relative paths are resolved from the session `cwd`. Absolute paths are read directly.
+file size. Relative paths are resolved from the session `cwd`.
+
+Absolute paths are accepted only when they resolve inside the session workspace or inside the bridge's
+own uploads directory (`<state dir>/uploads`). Resolution uses `realpath`, so a symlink whose target
+leaves the workspace is rejected as well. Rejected reads fail with the `PATH_OUTSIDE_SESSION` code.
 
 Authenticated clients can stream the complete file without loading it into the WebSocket payload:
 

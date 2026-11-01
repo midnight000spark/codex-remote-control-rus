@@ -62,6 +62,8 @@ npm run bridge
 | `CODEX_REMOTE_CLEAR_STATE_ON_START` | `0` | Set `1`, `true`, or `yes` to clear local bridge history before startup |
 | `CODEX_REMOTE_SYNC_LOG` | `0` | Set `1`, `true`, or `yes` to enable sync logging |
 | `CODEX_REMOTE_SYNC_LOG_FILE` | `~/.config/codex_remote_control/bridge-sync.log` | Sync log file path |
+| `CODEX_REMOTE_ALLOW_PUBLIC` | `0` | Set `1` to start on a non-loopback host without a Tailscale address |
+| `CODEX_REMOTE_DEFAULT_SANDBOX` | `danger-full-access` | Default sandbox for new sessions: `workspace-write` or `read-only` |
 
 Example using the mock backend:
 

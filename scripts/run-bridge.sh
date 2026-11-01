@@ -11,6 +11,7 @@ TOKEN_FILE="${CODEX_REMOTE_TOKEN_FILE:-$DATA_DIR/bridge-token.txt}"
 BRIDGE_ID_FILE="${CODEX_REMOTE_BRIDGE_ID_FILE:-$DATA_DIR/bridge-id.txt}"
 STATE_FILE="${CODEX_REMOTE_STATE_FILE:-$DATA_DIR/bridge-state.json}"
 CLEAR_STATE_ON_START="${CODEX_REMOTE_CLEAR_STATE_ON_START:-0}"
+ALLOW_PUBLIC="${CODEX_REMOTE_ALLOW_PUBLIC:-0}"
 SYNC_LOG="${CODEX_REMOTE_SYNC_LOG:-0}"
 SYNC_LOG_FILE="${CODEX_REMOTE_SYNC_LOG_FILE:-$DATA_DIR/bridge-sync.log}"
 
@@ -46,7 +47,8 @@ let token = "";
 try { token = fs.readFileSync(file, "utf8").trim(); } catch {}
 if (!token) {
   token = crypto.randomBytes(24).toString("hex");
-  fs.writeFileSync(file, `${token}\n`, "utf8");
+  fs.writeFileSync(file, `${token}\n`, { encoding: "utf8", mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch {}
 }
 process.stdout.write(token);
 ' "$TOKEN_FILE"
@@ -62,6 +64,46 @@ list_reachable_ips() {
   if command -v ifconfig >/dev/null 2>&1; then
     ifconfig 2>/dev/null | awk '/inet / { print $2 }' || true
   fi
+}
+
+is_loopback_host() {
+  case "$1" in
+    127.*|localhost|::1|"[::1]") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+ipv4_addresses() {
+  list_reachable_ips \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+    | grep -vE '^(127\.|0\.0\.0\.0)' \
+    | sort -u || true
+}
+
+tailscale_addresses() {
+  ipv4_addresses \
+    | grep -E '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.' || true
+}
+
+check_exposure() {
+  if is_loopback_host "$HOST"; then
+    return
+  fi
+  if [[ -n "$(tailscale_addresses)" ]]; then
+    return
+  fi
+  if [[ "$ALLOW_PUBLIC" == "1" || "$ALLOW_PUBLIC" == "true" || "$ALLOW_PUBLIC" == "yes" ]]; then
+    echo "ВНИМАНИЕ: Tailscale-интерфейс не найден, мост слушает $HOST." >&2
+    echo "           Публичный доступ разрешён принудительно (CODEX_REMOTE_ALLOW_PUBLIC=1)." >&2
+    return
+  fi
+  echo "Не найден адрес Tailscale (100.64.0.0/10), а мост слушает $HOST." >&2
+  echo "Так мост будет доступен всем, кто видит этот сетевой интерфейс." >&2
+  echo "Варианты:" >&2
+  echo "  1. Поднять Tailscale (tailscale up) и запустить снова." >&2
+  echo "  2. Слушать только локально: CODEX_REMOTE_HOST=127.0.0.1 npm run bridge" >&2
+  echo "  3. Разрешить явно: CODEX_REMOTE_ALLOW_PUBLIC=1 npm run bridge" >&2
+  exit 1
 }
 
 check_port_available() {
@@ -84,21 +126,24 @@ check_port_available() {
 migrate_legacy_runtime_files
 TOKEN="$(ensure_token)"
 
-echo "Codex Remote Control bridge"
-echo "Backend: $BACKEND"
-echo "Listen:  $HOST:$PORT"
-echo "Token:   $TOKEN"
+check_exposure
+
+echo "Мост Codex Remote Control"
+echo "Бэкенд:   $BACKEND"
+echo "Слушает:  $HOST:$PORT"
+echo "Токен:    $TOKEN"
 echo
-echo "手机端可以粘贴下面任意一个 ws:// 地址到 Host / URL 输入框："
-list_reachable_ips \
-  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
-  | grep -vE '^(127\.|0\.0\.0\.0)' \
-  | sort -u \
-  | while read -r ip; do
-      echo "  ws://$ip:$PORT/?token=$TOKEN"
-    done
+echo "Вставьте любой из этих ws:// адресов в поле Host / URL на телефоне:"
+ADDRESSES="$(ipv4_addresses)"
+if [[ -n "$ADDRESSES" ]]; then
+  echo "$ADDRESSES" | while read -r ip; do
+    echo "  ws://$ip:$PORT/?token=$TOKEN"
+  done
+else
+  echo "  (внешние IPv4-адреса не найдены)"
+fi
 echo
-echo "如果 Codex 需要代理，先在当前 shell 执行：source ~/.zshrc && proxy_on"
+echo "Если Codex требует прокси, включите его в текущем shell перед запуском моста."
 echo
 
 cd "$ROOT_DIR"

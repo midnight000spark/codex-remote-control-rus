@@ -99,10 +99,14 @@ async function loadOrCreateToken(tokenFile) {
   await fs.mkdir(path.dirname(tokenFile), { recursive: true });
   try {
     const token = (await fs.readFile(tokenFile, 'utf8')).trim();
-    if (token) return token;
+    if (token) {
+      // Tighten permissions on token files created by older versions.
+      await fs.chmod(tokenFile, 0o600).catch(() => {});
+      return token;
+    }
   } catch {}
   const token = cryptoRandomToken();
-  await fs.writeFile(tokenFile, `${token}\n`, 'utf8');
+  await fs.writeFile(tokenFile, `${token}\n`, { encoding: 'utf8', mode: 0o600 });
   return token;
 }
 

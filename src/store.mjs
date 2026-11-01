@@ -55,7 +55,7 @@ export class StateStore {
   async save() {
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     const tmp = `${this.filePath}.${randomUUID()}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(this.state, null, 2), 'utf8');
+    await fs.writeFile(tmp, JSON.stringify(this.state, null, 2), { encoding: 'utf8', mode: 0o600 });
     await fs.rename(tmp, this.filePath);
   }
 

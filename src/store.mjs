@@ -7,6 +7,16 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value)) {
+      deepFreeze(value[key]);
+    }
+  }
+  return value;
+}
+
 export class StateStore {
   constructor(filePath, { maxEventsPerSession = 500, saveDebounceMs = 200 } = {}) {
     this.filePath = filePath;
@@ -16,6 +26,16 @@ export class StateStore {
     this.saveTimer = null;
     this.saveInFlight = null;
     this.savePending = false;
+    // Sessions are read far more often than they are written, so cloned read
+    // snapshots are cached until the next mutation instead of being rebuilt on
+    // every call.
+    this.revision = 0;
+    this.snapshot = null;
+  }
+
+  #invalidate() {
+    this.revision += 1;
+    this.snapshot = null;
   }
 
   #emptyState() {
@@ -30,6 +50,7 @@ export class StateStore {
     // Pending debounced mutations must reach disk before re-reading, otherwise
     // an in-memory session created before start() is silently dropped.
     await this.flush();
+    this.#invalidate();
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     try {
       const raw = await fs.readFile(this.filePath, 'utf8');
@@ -49,6 +70,7 @@ export class StateStore {
 
   async clear() {
     this.state = this.#emptyState();
+    this.#invalidate();
     await this.save();
   }
 
@@ -64,6 +86,7 @@ export class StateStore {
   // only mark the store dirty and coalesce writes into one flush.
   saveSoon() {
     this.savePending = true;
+    this.#invalidate();
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
@@ -92,14 +115,22 @@ export class StateStore {
   }
 
   listSessions() {
-    return Object.values(this.state.sessions)
-      .map((session) => clone(session))
+    return Object.keys(this.state.sessions)
+      .map((sessionId) => this.getSession(sessionId))
+      .filter(Boolean)
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   }
 
   getSession(sessionId) {
     const session = this.state.sessions[sessionId];
-    return session ? clone(session) : null;
+    if (!session) return null;
+    const cached = this.snapshot;
+    if (cached && cached.sessionId === sessionId && cached.revision === this.revision) {
+      return cached.value;
+    }
+    const value = deepFreeze(clone(session));
+    this.snapshot = { sessionId, revision: this.revision, value };
+    return value;
   }
 
   getLastSeq(sessionId) {

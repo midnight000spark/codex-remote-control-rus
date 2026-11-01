@@ -255,19 +255,24 @@ private fun buildCachedConversationRenderedItems(
 ): List<ConversationRenderedItem> {
     val liveIds = items.mapTo(mutableSetOf()) { it.id }
     cache.keys.removeAll { it !in liveIds }
+    val contextKey = buildConversationRenderContextKey(displayBasePath, imageContext, showMessageTimestamps)
     return items.map { item ->
-        val signature = buildConversationRenderSignature(item, displayBasePath, imageContext, showMessageTimestamps)
         val cached = cache[item.id]
-        if (cached != null && cached.signature == signature) {
-            cached.renderedItem
-        } else {
-            val renderedItem = buildConversationRenderedItem(item, displayBasePath, imageContext, showMessageTimestamps)
-            cache[item.id] = ConversationRenderCacheEntry(
-                signature = signature,
-                renderedItem = renderedItem,
-            )
-            renderedItem
+        if (cached != null && cached.contextKey == contextKey && cached.source === item) {
+            return@map cached.renderedItem
         }
+        val signature = buildConversationRenderSignature(item, displayBasePath, imageContext, showMessageTimestamps)
+        if (cached != null && cached.contextKey == contextKey && cached.signature == signature) {
+            return@map cached.renderedItem
+        }
+        val renderedItem = buildConversationRenderedItem(item, displayBasePath, imageContext, showMessageTimestamps)
+        cache[item.id] = ConversationRenderCacheEntry(
+            signature = signature,
+            renderedItem = renderedItem,
+            source = item,
+            contextKey = contextKey,
+        )
+        renderedItem
     }
 }
 

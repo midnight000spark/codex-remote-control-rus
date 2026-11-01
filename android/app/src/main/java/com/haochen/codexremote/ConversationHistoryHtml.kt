@@ -56,7 +56,22 @@ internal data class ConversationRenderedItem(
 internal data class ConversationRenderCacheEntry(
     val signature: String,
     val renderedItem: ConversationRenderedItem,
+    // Conversation items are immutable, so an unchanged item keeps its identity
+    // and skips rebuilding a signature over its whole text on every frame.
+    val source: ConversationItem? = null,
+    val contextKey: String = "",
 )
+
+internal fun buildConversationRenderContextKey(
+    displayBasePath: String?,
+    imageContext: ConversationImageRenderContext,
+    showMessageTimestamps: Boolean,
+): String = listOf(
+    displayBasePath.orEmpty(),
+    imageContext.sessionId.orEmpty(),
+    imageContext.bridgeUrl.orEmpty(),
+    showMessageTimestamps.toString(),
+).joinToString("\u001F")
 
 internal fun buildConversationRenderedItems(
     items: List<ConversationItem>,

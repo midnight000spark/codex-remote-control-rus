@@ -77,7 +77,7 @@ internal fun MainActivity.disconnectBridge(
         sessionContentDirty = false
         assistantDeltaBuffers.clear()
         pendingApprovals.clear()
-        pendingRequests.clear()
+        clearPendingRequests()
         currentBridgeUrl = null
         selectedWorkspace = null
         projectDirectoryPickerState = null
@@ -200,7 +200,7 @@ internal fun MainActivity.connectToBridge(
                         sessionContentDirty = false
                         assistantDeltaBuffers.clear()
                         pendingApprovals.clear()
-                        pendingRequests.clear()
+                        clearPendingRequests()
                         stopSessionSyncLoop()
                         bridgeClient = null
                         val normalizedReason = normalizeBridgeDisconnectReason(code, reason, error)
@@ -634,17 +634,43 @@ internal fun MainActivity.sendRequest(type: String, payload: JSONObject, handler
         }
 
         if (handler != null) {
-            pendingRequests[id] = handler
+            registerPendingRequest(id, handler)
         }
         return try {
             bridgeClient?.sendText(request.toString())
             true
         } catch (error: IOException) {
-            pendingRequests.remove(id)
+            takePendingRequest(id)
             appendSystemNote("Не удалось отправить: ${error.message}")
             showNotice("Не удалось отправить: ${error.message}")
             false
         }
+    }
+
+// A response that never arrives used to keep its handler (and anything it
+// captured) alive for the rest of the session, so every request is armed with
+// a timeout that drops it.
+internal fun MainActivity.registerPendingRequest(id: String, handler: ResponseHandler) {
+        pendingRequests[id] = handler
+        val timeout = Runnable {
+            pendingRequestTimeouts.remove(id)
+            if (pendingRequests.remove(id) != null) {
+                syncDebugLog { "request timeout id=$id" }
+            }
+        }
+        pendingRequestTimeouts[id] = timeout
+        mainHandler.postDelayed(timeout, PENDING_REQUEST_TIMEOUT_MS)
+    }
+
+internal fun MainActivity.takePendingRequest(id: String): ResponseHandler? {
+        pendingRequestTimeouts.remove(id)?.let(mainHandler::removeCallbacks)
+        return pendingRequests.remove(id)
+    }
+
+internal fun MainActivity.clearPendingRequests() {
+        pendingRequestTimeouts.values.forEach(mainHandler::removeCallbacks)
+        pendingRequestTimeouts.clear()
+        pendingRequests.clear()
     }
 
 internal fun MainActivity.loadBridgeUrl(): String {

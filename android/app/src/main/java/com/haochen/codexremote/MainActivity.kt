@@ -57,6 +57,8 @@ internal const val DEFAULT_BRIDGE_PING_INTERVAL_SECONDS = 20
 internal const val DEFAULT_SESSION_HISTORY_MONTHS = 0
 internal const val DEFAULT_SESSION_SYNC_INTERVAL_SECONDS = 5
 internal const val INVALID_FRAME_PREVIEW_CHARS = 200
+internal const val PENDING_REQUEST_TIMEOUT_MS = 30_000L
+internal const val RENDERED_EVENT_KEYS_LIMIT = 5000
 internal const val LIVE_TURN_STATUS_COALESCE_MS = 200L
 
 class MainActivity : ComponentActivity() {
@@ -89,6 +91,7 @@ class MainActivity : ComponentActivity() {
     internal var liveTurnStatusPending: String? = null
     internal var liveTurnStatusFlushRunnable: Runnable? = null
     internal val pendingRequests = mutableMapOf<String, ResponseHandler>()
+    internal val pendingRequestTimeouts = mutableMapOf<String, Runnable>()
     internal val renderedEventKeys = mutableSetOf<String>()
     internal val sessions = mutableStateListOf<SessionInfo>()
     internal val availableModels = mutableStateListOf<ModelInfo>()
@@ -285,6 +288,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         stopSessionSyncLoop()
         cancelReconnectSchedule(resetAttempt = false)
+        clearPendingRequests()
         protocolParseExecutor.shutdownNow()
         sessionCacheWriter.shutdown()
         cacheReadExecutor.shutdownNow()

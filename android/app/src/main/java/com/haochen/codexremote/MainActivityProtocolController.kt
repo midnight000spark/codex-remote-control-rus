@@ -43,7 +43,7 @@ internal fun MainActivity.handleIncomingMessage(message: JSONObject) {
 
 internal fun MainActivity.handleResponse(message: JSONObject) {
         val id = message.optString("id", "")
-        val callback = pendingRequests.remove(id)
+        val callback = takePendingRequest(id)
         val ok = message.optBoolean("ok", true)
         if (callback != null) {
             if (!ok) {
@@ -238,8 +238,20 @@ internal fun MainActivity.shouldIgnoreEvent(message: JSONObject): Boolean {
             return false
         }
         val key = "$sessionId:$seq"
-        if (renderedEventKeys.contains(key)) return true
-        renderedEventKeys.add(key)
+        if (!renderedEventKeys.add(key)) return true
+        // Bound the dedupe set: it otherwise grows with every event of every
+        // session for the whole lifetime of the activity. Evicting the oldest
+        // keys can only re-render a very old event, and the next snapshot apply
+        // reconciles any duplicate it produces.
+        if (renderedEventKeys.size > RENDERED_EVENT_KEYS_LIMIT) {
+            val excess = renderedEventKeys.size - RENDERED_EVENT_KEYS_LIMIT
+            val iterator = renderedEventKeys.iterator()
+            repeat(excess) {
+                if (!iterator.hasNext()) return@repeat
+                iterator.next()
+                iterator.remove()
+            }
+        }
         return false
     }
 

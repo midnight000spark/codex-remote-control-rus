@@ -1,41 +1,4 @@
-import { clone, userMessageContentSignature } from './common.mjs';
-
-export function mergeInitialSessionEvents(hydratedEvents, storedEvents) {
-  if (hydratedEvents.length === 0) {
-    return clone(storedEvents);
-  }
-
-  const merged = [];
-  const seen = new Set();
-  const finalizedAssistantItems = new Set(
-    hydratedEvents
-      .filter((event) => event?.event === 'item/completed' && event?.payload?.item?.type === 'agentMessage')
-      .map((event) => `${event?.turn_id ?? ''}|${event?.payload?.item?.id ?? ''}`),
-  );
-
-  for (const event of hydratedEvents) {
-    const signature = eventSignature(event);
-    if (seen.has(signature)) continue;
-    seen.add(signature);
-    merged.push(event);
-  }
-
-  for (const event of storedEvents) {
-    const signature = eventSignature(event);
-    if (seen.has(signature)) continue;
-    if (event?.event === 'item/agentMessage/delta') {
-      const itemId = event?.payload?.itemId ?? event?.payload?.item_id ?? '';
-      const key = `${event?.turn_id ?? ''}|${itemId}`;
-      if (itemId && finalizedAssistantItems.has(key)) {
-        continue;
-      }
-    }
-    seen.add(signature);
-    merged.push(event);
-  }
-
-  return merged;
-}
+import { userMessageContentSignature } from './common.mjs';
 
 export function pruneHydratedEvents(hydratedEvents, storedEvents) {
   if (hydratedEvents.length === 0) {

@@ -384,6 +384,64 @@ test('a session that throws mid-poll does not stall the other sessions', async (
   }
 });
 
+test('the monitor schedules its own backoff delays and resets after a success', async () => {
+  const delays = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  // The monitor is the only timer user in this window: the wait below is
+  // event-driven, so every captured delay belongs to the poll schedule.
+  globalThis.setTimeout = (fn, delay, ...args) => {
+    delays.push(delay);
+    return originalSetTimeout(fn, delay, ...args);
+  };
+  // The monitor unrefs its timers, so the event loop would drain while the test
+  // waits. This handle keeps it alive and is not captured by the spy above.
+  const keepAlive = originalSetTimeout(() => {}, 5000);
+  let calls = 0;
+  const errors = [];
+  let baselineSeen;
+  const baseline = new Promise((resolve) => {
+    baselineSeen = resolve;
+  });
+  const monitor = new ExternalSessionMonitor({
+    backend: {
+      listThreads: async () => {
+        calls += 1;
+        if (calls <= 2) throw new Error('backend down');
+        return [];
+      },
+    },
+    store: {
+      getSession: () => null,
+      upsertSession: async () => {},
+      getLastSeq: () => 0,
+    },
+    sessionContent: {
+      refreshSessionHistory: async () => ({ ok: true, events: [], appended: 0, skipped: 0, lastSeq: 0 }),
+    },
+    intervalMs: 20,
+    logSync: (event) => {
+      if (event === 'external_monitor.poll.error') errors.push(event);
+      if (event === 'external_monitor.baseline') baselineSeen();
+    },
+  });
+  try {
+    monitor.start();
+    await baseline;
+    // Let #schedule() run after the last poll settles.
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    monitor.stop();
+    clearTimeout(keepAlive);
+    globalThis.setTimeout = originalSetTimeout;
+  }
+
+  assert.equal(errors.length, 2);
+  // #schedule must use #nextDelayMs(): two failures double 20 -> 40, the
+  // success puts it back to 20. Scheduling the raw interval would give
+  // [0, 20, 20, 20].
+  assert.deepEqual(delays.slice(0, 4), [0, 20, 40, 20]);
+});
+
 test('monitor poll delay doubles per consecutive failure and resets on success', () => {
   assert.equal(externalMonitorBackoffMs(5000, 0, 60_000), 5000);
   // A single failure retries at the normal interval, not twice it.

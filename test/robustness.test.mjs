@@ -375,6 +375,61 @@ test('heartbeat terminates a connection that stopped answering pings', async () 
   }
 });
 
+test('a pong marks the connection alive again', async () => {
+  const { bridge, cleanup } = await createHarness();
+  let client = null;
+  try {
+    client = new WebSocket(`ws://127.0.0.1:${bridge.address().port}/?token=test-token`);
+    await withTimeout(new Promise((resolve, reject) => {
+      client.once('open', resolve);
+      client.once('error', reject);
+    }));
+    await waitFor(() => bridge.connections.size === 1);
+
+    // isAlive === false is what a heartbeat tick leaves behind. If the pong
+    // listener is missing, nothing sets it back and the client is killed on the
+    // next tick.
+    const [serverSocket] = bridge.connections;
+    serverSocket.isAlive = false;
+    serverSocket.emit('pong');
+    assert.equal(serverSocket.isAlive, true);
+  } finally {
+    client?.terminate();
+    await cleanup();
+  }
+});
+
+test('the heartbeat keeps a responsive client and drops a silent one', async () => {
+  const { bridge, cleanup } = await createHarness({ heartbeatIntervalMs: 1000 });
+  const clients = [];
+  try {
+    const url = `ws://127.0.0.1:${bridge.address().port}/?token=test-token`;
+    const responsive = new WebSocket(url);
+    // A peer that completes the handshake but never answers a ping.
+    const silent = new WebSocket(url, { autoPong: false });
+    clients.push(responsive, silent);
+    await withTimeout(Promise.all([
+      new Promise((resolve, reject) => {
+        responsive.once('open', resolve);
+        responsive.once('error', reject);
+      }),
+      new Promise((resolve, reject) => {
+        silent.once('open', resolve);
+        silent.once('error', reject);
+      }),
+    ]));
+    await waitFor(() => bridge.connections.size === 2);
+
+    await waitFor(() => bridge.connections.size === 1, 5000);
+
+    assert.equal(responsive.readyState, WebSocket.OPEN, 'the client that answers pings stays');
+    assert.notEqual(silent.readyState, WebSocket.OPEN, 'the silent client is dropped');
+  } finally {
+    for (const client of clients) client.terminate();
+    await cleanup();
+  }
+});
+
 test('heartbeat pings a live connection on the first tick', async () => {
   const { bridge, cleanup } = await createHarness({ heartbeatIntervalMs: 1000 });
   try {

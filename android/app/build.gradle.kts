@@ -47,7 +47,7 @@ android {
         applicationId = "com.haochen.codexremote"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         versionName = appVersionName
     }
 

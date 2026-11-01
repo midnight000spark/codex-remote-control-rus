@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -350,22 +349,25 @@ internal fun MainActivity.ApprovalDialog(
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        // With a long file list the content used to push the action buttons off
-        // the screen, which made the approval impossible to answer. The body
-        // scrolls inside a bounded height; the actions stay pinned below it.
-        val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.68f).dp
+        // The body scrolls and the actions stay pinned below it. Sizing the body
+        // from screen height alone was wrong: it ignored the action block, so in
+        // landscape the last buttons were clipped and the approval could not be
+        // answered. Bound the dialog instead, and let the body take the rest.
+        val maxDialogHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = uiSurface,
             tonalElevation = 6.dp,
             shadowElevation = 10.dp,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxDialogHeight),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = maxBodyHeight)
+                        .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState())
                         .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),

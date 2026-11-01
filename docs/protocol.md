@@ -107,9 +107,7 @@ Backend notifications are broadcast as:
 
 ## Field Naming
 
-The bridge does not normalise casing on the way in. Each handler reads the keys
-it was written against, so a key sent in the other spelling is ignored without
-an error. Two rules cover almost everything:
+Two rules cover almost everything:
 
 - **Identifiers** are `snake_case`: `session_id`, `thread_id`, `turn_id`,
   `request_id`, `since_seq`, `max_bytes`. `thread_id` is accepted anywhere a
@@ -120,11 +118,12 @@ an error. Two rules cover almost everything:
   `developerInstructions`, `threadSource`, `sessionStartSource`,
   `responsesapiClientMetadata`, `strictAutoReview`.
 
-Three handlers accept a second spelling:
-
-- `session.list` reads `history_months ?? historyMonths`;
-- `session.update` reads `sandbox` or `sandboxPolicy` for the same field;
-- `turn.interrupt` reads `turn_id ?? turnId`.
+For the settings above, the bridge accepts either spelling: a snake_case
+setting (`approval_policy`, `sandbox_policy`, `base_instructions`, ...) is
+aliased to its camelCase name before dispatch, and an explicit camelCase key
+wins if both are present. Identifiers are not aliased - `session_id` is not
+read as `sessionId`. `session.update` also treats `sandbox` and `sandboxPolicy`
+as the same field, and `turn.interrupt` reads `turn_id ?? turnId`.
 
 Event envelopes written by the bridge are always `snake_case` (`seq`, `at`,
 `event`, `session_id`, `turn_id`). The nested `payload` of an event mirrors
@@ -133,7 +132,10 @@ whatever the Codex backend sent, so its keys may be `snake_case` or `camelCase`
 spellings for backend-provided fields and use the envelope only for ordering and
 session attribution.
 
-### Request payload keys, as spelled
+### Request payload keys
+
+Settings are listed in their canonical camelCase form; the snake_case alias
+works as well.
 
 | Message | Keys |
 | --- | --- |

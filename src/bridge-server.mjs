@@ -91,6 +91,45 @@ function normalizeHistoryMonths(value) {
   return Number.isFinite(months) && months > 0 ? Math.min(Math.floor(months), 120) : 0;
 }
 
+// Settings are read as camelCase by every handler, but the wire is easy to get
+// wrong (see docs/protocol.md). Every setting that can arrive as snake_case is
+// aliased to its camelCase spelling once, before dispatch. An explicit
+// camelCase key always wins; identifiers and backend passthrough payloads are
+// left untouched.
+const SETTING_ALIASES = [
+  ['approvalPolicy', 'approval_policy'],
+  ['approvalsReviewer', 'approvals_reviewer'],
+  ['sandboxPolicy', 'sandbox_policy'],
+  ['modelProvider', 'model_provider'],
+  ['serviceTier', 'service_tier'],
+  ['serviceName', 'service_name'],
+  ['persistExtendedHistory', 'persist_extended_history'],
+  ['baseInstructions', 'base_instructions'],
+  ['developerInstructions', 'developer_instructions'],
+  ['threadSource', 'thread_source'],
+  ['sessionStartSource', 'session_start_source'],
+  ['responsesapiClientMetadata', 'responsesapi_client_metadata'],
+  ['strictAutoReview', 'strict_auto_review'],
+  ['historyMonths', 'history_months'],
+  ['excludeTurns', 'exclude_turns'],
+  ['dynamicTools', 'dynamic_tools'],
+  ['experimentalRawEvents', 'experimental_raw_events'],
+  ['mockExperimentalField', 'mock_experimental_field'],
+  ['outputSchema', 'output_schema'],
+  ['collaborationMode', 'collaboration_mode'],
+];
+
+function withSettingAliases(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+  let alias = null;
+  for (const [camel, snake] of SETTING_ALIASES) {
+    if (!Object.hasOwn(payload, snake) || Object.hasOwn(payload, camel)) continue;
+    alias ??= { ...payload };
+    alias[camel] = payload[snake];
+  }
+  return alias ?? payload;
+}
+
 function sessionTimestampMillis(session) {
   const raw = session?.updatedAt ?? session?.createdAt;
   const numeric = Number(raw);
@@ -566,7 +605,7 @@ export class BridgeServer extends EventEmitter {
   async #handleClientMessage(ws, message) {
     const type = message?.type;
     const id = message?.id ?? randomUUID();
-    const payload = message?.payload ?? {};
+    const payload = withSettingAliases(message?.payload ?? {});
 
     switch (type) {
       case 'ping':

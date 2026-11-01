@@ -72,12 +72,12 @@ internal fun MainActivity.startNewSession(
     ) {
         if (!ensureConnected()) return
         if (model.isBlank()) {
-            showNotice("请先选择一个模型")
+            showNotice("Сначала выберите модель")
             return
         }
 
         val payload = JSONObject().apply {
-            put("title", workspaceDisplayName(projectPath, fallback = "新对话"))
+            put("title", workspaceDisplayName(projectPath, fallback = "Новый диалог"))
             if (!projectPath.isNullOrBlank()) {
                 put("cwd", projectPath)
             }
@@ -103,8 +103,8 @@ internal fun MainActivity.startNewSession(
                     selectedWorkspace = info.cwd.takeIf { it.isNotBlank() } ?: projectPath
                     syncChatSettingsFromSession(info)
                     requestActiveGoal(info.sessionId)
-                    appendSystemNote("新会话已创建: ${shortId(info.sessionId)}")
-                    showNotice("新对话已创建")
+                    appendSystemNote("Новая сессия создана: ${shortId(info.sessionId)}")
+                    showNotice("Новый диалог создан")
                 }
             }
         ) {
@@ -117,18 +117,18 @@ internal fun MainActivity.sendComposerText() {
         val attachments = composerImageAttachments.toList()
         if (text.isEmpty() && attachments.isEmpty()) return
         if (composerImageUploadInProgress) {
-            showNotice("图片仍在上传")
+            showNotice("Изображение ещё загружается")
             return
         }
         if (!ensureConnected()) return
         val sessionId = activeSessionId
         if (sessionId.isNullOrBlank()) {
-            appendSystemNote("先创建或选择一个会话")
+            appendSystemNote("Сначала создайте или выберите сессию")
             return
         }
         val turnId = activeTurnId
         if (!turnId.isNullOrBlank() && interruptingTurnId == turnId) {
-            showNotice("正在中断当前回合")
+            showNotice("Прерываю текущий ход")
             return
         }
 
@@ -138,7 +138,7 @@ internal fun MainActivity.sendComposerText() {
         }
         if (selectedChatMode == ChatMode.Goal && activeThreadGoal == null) {
             chatSettingsSheet = ChatSettingsSheet.Mode
-            showNotice("请先设置目标")
+            showNotice("Сначала задайте цель")
             return
         }
 
@@ -239,7 +239,7 @@ internal fun MainActivity.switchActiveSessionToFullAccess() {
                 if (updated != null) {
                     upsertSession(updated)
                     openSessionInfoSheet()
-                    showNotice("已切回完整访问")
+                    showNotice("Возвращён полный доступ")
                 }
             }
         ) {
@@ -252,11 +252,11 @@ internal fun MainActivity.interruptCurrentTurn() {
         val sessionId = activeSessionId
         val turnId = activeTurnId
         if (sessionId.isNullOrBlank() || turnId.isNullOrBlank()) {
-            appendSystemNote("当前没有可中断的回合")
+            appendSystemNote("Сейчас нет хода, который можно прервать")
             return
         }
         if (interruptingTurnId == turnId) {
-            showNotice("正在中断当前回合")
+            showNotice("Прерываю текущий ход")
             return
         }
 
@@ -266,10 +266,10 @@ internal fun MainActivity.interruptCurrentTurn() {
         }
 
         interruptingTurnId = turnId
-        updateLiveTurnStatus("正在中断当前回合…")
+        updateLiveTurnStatus("Прерываю текущий ход…")
         if (!sendRequest("turn.interrupt", payload, object : ResponseHandler {
             override fun onResponse(response: JSONObject) {
-                showNotice("已请求中断")
+                showNotice("Запрошено прерывание")
             }
 
             override fun onError(errorText: String) {
@@ -588,45 +588,45 @@ internal fun MainActivity.normalizeReasoningEffortForModel(
     }
 
 internal fun MainActivity.reasoningEffortMenuLabel(effort: String): String {
-        return effort.trim().ifBlank { "默认" }
+        return effort.trim().ifBlank { "По умолчанию" }
     }
 
 internal fun MainActivity.reasoningEffortDescription(effort: String): String {
         return when (effort.trim()) {
-            "none" -> "尽量不做额外推理，返回会更直接。"
-            "minimal" -> "保留极少推理，适合很轻的任务。"
-            "low" -> "较轻推理，适合常规问答和小改动。"
-            "medium" -> "速度和质量更平衡，适合大多数任务。"
-            "high" -> "更多推理，适合复杂实现和排查。"
-            "xhigh" -> "额外高强度推理，适合更复杂的问题。"
-            "max" -> "最大推理深度，适合最困难的问题。"
-            "ultra" -> "最大推理深度，并允许自动委派任务。"
-            else -> "按该模型支持的思考强度原样下发。"
+            "none" -> "Минимум дополнительных рассуждений — ответы будут прямее."
+            "minimal" -> "Минимум рассуждений — для очень простых задач."
+            "low" -> "Лёгкие рассуждения — для обычных вопросов и небольших правок."
+            "medium" -> "Баланс скорости и качества — подходит для большинства задач."
+            "high" -> "Больше рассуждений — для сложной реализации и диагностики."
+            "xhigh" -> "Дополнительные интенсивные рассуждения — для более сложных вопросов."
+            "max" -> "Максимальная глубина рассуждений — для самых сложных задач."
+            "ultra" -> "Максимальная глубина рассуждений с автоматическим делегированием задач."
+            else -> "Передаётся как есть с интенсивностью рассуждений, поддерживаемой моделью."
         }
     }
 
 internal fun MainActivity.approvalPolicyMenuOptions(): List<SelectionMenuOption> {
         return listOf(
-            SelectionMenuOption("untrusted", "最保守 (untrusted)"),
-            SelectionMenuOption("on-request", "按需审批 (on-request)"),
-            SelectionMenuOption("on-failure", "失败后审批 (on-failure)"),
-            SelectionMenuOption("never", "不审批 (never)"),
+            SelectionMenuOption("untrusted", "Самый осторожный (untrusted)"),
+            SelectionMenuOption("on-request", "Подтверждение по запросу (on-request)"),
+            SelectionMenuOption("on-failure", "Подтверждение при сбое (on-failure)"),
+            SelectionMenuOption("never", "Без подтверждений (never)"),
         )
     }
 
 internal fun MainActivity.sandboxMenuOptions(): List<SelectionMenuOption> {
         return listOf(
-            SelectionMenuOption("readOnly", "只读", "只能查看文件。"),
-            SelectionMenuOption("workspaceWrite", "工作区", "可修改当前项目文件。"),
-            SelectionMenuOption("dangerFullAccess", "完整访问", "不限制文件访问。"),
+            SelectionMenuOption("readOnly", "Только чтение", "Можно только просматривать файлы."),
+            SelectionMenuOption("workspaceWrite", "Рабочая область", "Можно изменять файлы текущего проекта."),
+            SelectionMenuOption("dangerFullAccess", "Полный доступ", "Не ограничивать доступ к файлам."),
         )
     }
 
 internal fun MainActivity.sandboxDescription(sandbox: String): String {
         return when (sandbox.trim()) {
-            "readOnly" -> "只读模式。不能改文件，适合纯查看、检索和解释。"
-            "workspaceWrite" -> "仅允许写当前项目工作区；更稳妥，适合日常改代码。"
-            else -> "允许完整文件系统访问；能力最强，但风险也最高。"
+            "readOnly" -> "Режим только чтения. Файлы изменять нельзя — подходит для просмотра, поиска и объяснений."
+            "workspaceWrite" -> "Разрешена запись только в рабочую область текущего проекта; безопаснее и подходит для повседневной правки кода."
+            else -> "Разрешает полный доступ к файловой системе; самые широкие возможности, но и самый высокий риск."
         }
     }
 
@@ -705,7 +705,7 @@ internal fun MainActivity.projectBuckets(): List<ProjectGroup> {
 
 internal fun MainActivity.openNewChatDialog(projectPath: String?) {
         if (!connected) {
-            showNotice("请先连接 Linux Bridge")
+            showNotice("Сначала подключитесь к Linux Bridge")
             return
         }
         val defaultModel =
@@ -731,14 +731,14 @@ internal fun MainActivity.openSessionInfoSheet() {
                 canSwitchToFullAccess = !session.isDangerFullAccess(),
                 rows =
                     buildList {
-                        add("会话 ID" to session.sessionId)
-                        add("目录" to session.cwd.ifBlank { "未提供" })
-                        add("模型" to session.modelSummary())
-                        add("审批策略" to session.approvalPolicy.ifBlank { "未提供" })
-                        add("沙箱" to session.sandboxSummary())
-                        add("上下文窗口" to session.contextWindowSummary())
-                        add("最近 token" to session.lastTokenUsageSummary())
-                        add("累计 token" to session.totalTokenUsageSummary())
+                        add("ID сессии" to session.sessionId)
+                        add("Каталог" to session.cwd.ifBlank { "Не указано" })
+                        add("Модель" to session.modelSummary())
+                        add("Политика подтверждений" to session.approvalPolicy.ifBlank { "Не указано" })
+                        add("Песочница" to session.sandboxSummary())
+                        add("Окно контекста" to session.contextWindowSummary())
+                        add("Недавние token" to session.lastTokenUsageSummary())
+                        add("Всего token" to session.totalTokenUsageSummary())
                     },
             )
     }
@@ -751,7 +751,7 @@ internal fun MainActivity.rebuildActiveSessionHistory() {
         requestSessionContent(sessionId)
         sessionInfoSheetState = null
         currentPage = AppPage.Chat
-        showNotice("正在重建历史记录")
+        showNotice("Пересобираю историю")
     }
 
 

@@ -12,14 +12,14 @@ import org.json.JSONObject
 
 internal fun MainActivity.toggleConnection() {
         if (bridgeClient?.isOpen() == true) {
-            disconnectBridge(detail = "连接已关闭", switchToConnectionPage = true)
+            disconnectBridge(detail = "Соединение закрыто", switchToConnectionPage = true)
             return
         }
 
         val url = try {
             buildBridgeUrl()
         } catch (error: Exception) {
-            connectionDetail = "桥接地址无效: ${error.message}"
+            connectionDetail = "Недействительный адрес Bridge: ${error.message}"
             showNotice(connectionDetail)
             return
         }
@@ -47,7 +47,7 @@ internal fun MainActivity.retryCurrentConnection() {
             ?: bridgeUrl.trim().takeIf { it.isNotBlank() }
         if (url == null) {
             openConnectionPage()
-            connectionDetail = "请先填写 Bridge URL"
+            connectionDetail = "Сначала заполните Bridge URL"
             showNotice(connectionDetail)
             return
         }
@@ -97,7 +97,7 @@ internal fun MainActivity.connectToBridge(
         if (bridgeClient?.isOpen() == true && currentBridgeUrl == url) {
             currentConnectionId = targetConnectionId ?: currentConnectionId
             currentPage = AppPage.Chat
-            connectionDetail = "已连接到 ${connectionDisplayName(url, currentConnectionId)}"
+            connectionDetail = "Подключено к ${connectionDisplayName(url, currentConnectionId)}"
             return
         }
 
@@ -105,15 +105,15 @@ internal fun MainActivity.connectToBridge(
             currentConnectionId = targetConnectionId ?: currentConnectionId
             connectionDetail =
                 if (isAutoReconnect || reconnectAttempt > 0) {
-                    "自动重连中: $url"
+                    "Автопереподключение: $url"
                 } else {
-                    "连接中: $url"
+                    "Подключение: $url"
                 }
             return
         }
 
         if (bridgeClient != null) {
-            disconnectBridge(detail = "正在切换连接…", switchToConnectionPage = false)
+            disconnectBridge(detail = "Переключаю подключение…", switchToConnectionPage = false)
         }
 
         mainHandler.removeCallbacks(reconnectRunnable)
@@ -132,9 +132,9 @@ internal fun MainActivity.connectToBridge(
         currentBridgeUrl = url
         connectionDetail =
             if (isAutoReconnect || reconnectAttempt > 0) {
-                "自动重连中${reconnectAttempt.takeIf { it > 0 }?.let { "($it)" }.orEmpty()}: $url"
+                "Автопереподключение${reconnectAttempt.takeIf { it > 0 }?.let { "($it)" }.orEmpty()}: $url"
             } else {
-                "连接中: $url"
+                "Подключение: $url"
             }
 
         bridgeClient = BridgeClient(
@@ -143,7 +143,7 @@ internal fun MainActivity.connectToBridge(
                 override fun onOpen() {
                     mainHandler.post {
                         connected = false
-                        connectionDetail = "已建立连接，等待 Bridge 握手"
+                        connectionDetail = "Соединение установлено, ожидание рукопожатия Bridge"
                         mainHandler.removeCallbacks(bridgeHelloTimeoutRunnable)
                         mainHandler.postDelayed(
                             bridgeHelloTimeoutRunnable,
@@ -174,7 +174,7 @@ internal fun MainActivity.connectToBridge(
                         val targetUrl = entry?.url?.takeIf { it.isNotBlank() }
                             ?: currentBridgeUrl?.takeIf { it.isNotBlank() }
                             ?: bridgeUrl.trim().takeIf { it.isNotBlank() }
-                        if (normalizedReason == "token 不正确或已过期") {
+                        if (normalizedReason == "token неверный или истёк") {
                             currentBridgeUrl = null
                             connectionDetail = normalizedReason
                             currentPage = AppPage.Connection
@@ -210,11 +210,11 @@ internal fun MainActivity.connectToBridge(
             val entry = findConnectionHistoryById(currentConnectionId)
             val targetUrl = entry?.url?.takeIf { it.isNotBlank() } ?: url
             if (shouldScheduleReconnect(targetUrl)) {
-                scheduleReconnect(url = targetUrl, reason = "连接失败", error = error)
+                scheduleReconnect(url = targetUrl, reason = "Не удалось подключиться", error = error)
             } else {
                 currentBridgeUrl = null
                 showCachedHistoryAfterConnectionFailure()
-                connectionDetail = buildReconnectExhaustedDetail(normalizeBridgeDisconnectReason(-1, "连接失败", error))
+                connectionDetail = buildReconnectExhaustedDetail(normalizeBridgeDisconnectReason(-1, "Не удалось подключиться", error))
                 showNotice(connectionDetail)
             }
         }
@@ -228,7 +228,7 @@ internal fun MainActivity.applyHistoryConnection(entry: BridgeHistoryEntry) {
         bridgeUrl = entry.url
         saveBridgeSettings(entry.url, entry.id)
         switchLocalSessionCache(entry)
-        connectionDetail = "已回填 ${entry.displayName()}，点击连接即可"
+        connectionDetail = "Заполнено ${entry.displayName()}, достаточно нажать «Подключиться»"
     }
 
 internal fun MainActivity.connectToHistory(entry: BridgeHistoryEntry) {
@@ -250,7 +250,7 @@ internal fun MainActivity.openEditConnectionDialog(entry: BridgeHistoryEntry) {
 internal fun MainActivity.requestRemoveConnection(entry: BridgeHistoryEntry) {
         if (hasOtherUrlsForBridge(entry) || !hasLocalSessionCacheForConnection(entry)) {
             removeConnectionHistory(entry.id)
-            showNotice("已移除连接")
+            showNotice("Подключение удалено")
             return
         }
         connectionRemovalState =
@@ -270,7 +270,7 @@ internal fun MainActivity.confirmRemoveConnection(
         if (deleteCache && entry != null) {
             clearSessionCacheForConnection(entry)
         } else {
-            showNotice("已移除连接")
+            showNotice("Подключение удалено")
         }
         connectionRemovalState = null
     }
@@ -279,12 +279,12 @@ internal fun MainActivity.confirmRemoveConnection(
 internal fun MainActivity.buildBridgeUrl(): String {
         val raw = bridgeUrl.trim()
         if (raw.isEmpty()) {
-            throw IllegalArgumentException("Bridge URL 不能为空")
+            throw IllegalArgumentException("Bridge URL не может быть пустым")
         }
 
         val normalized = normalizeBridgeUrl(raw, requireToken = true)
         val uri = URI.create(normalized)
-        val host = uri.host?.takeIf { it.isNotBlank() } ?: throw IllegalArgumentException("URL host 不能为空")
+        val host = uri.host?.takeIf { it.isNotBlank() } ?: throw IllegalArgumentException("URL host не может быть пустым")
         val port = if (uri.port >= 0) uri.port else 8787
         val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
         val query = uri.rawQuery
@@ -292,7 +292,7 @@ internal fun MainActivity.buildBridgeUrl(): String {
         val tokenFromPrefs = prefs.getString(KEY_TOKEN, "")?.trim().orEmpty()
         val token = tokenFromUrl ?: tokenFromPrefs
         if (token.isBlank()) {
-            throw IllegalArgumentException("URL 里需要 token，例如 ?token=...")
+            throw IllegalArgumentException("В URL нужен token, например ?token=...")
         }
 
         val base = "${uri.scheme}://$host:$port$path"
@@ -519,14 +519,14 @@ internal fun MainActivity.normalizeBridgeDisconnectReason(
             .joinToString(" ")
             .lowercase()
         return when {
-            code == 1008 || rawReason.equals("unauthorized", ignoreCase = true) -> "token 不正确或已过期"
-            combined.contains("ping") || combined.contains("pong") -> "心跳超时，连接已断开"
-            combined.contains("timeout") || combined.contains("timed out") -> "连接超时"
-            rawReason.equals("连接失败", ignoreCase = true) && rawError.isNotBlank() -> "连接失败: $rawError"
+            code == 1008 || rawReason.equals("unauthorized", ignoreCase = true) -> "token неверный или истёк"
+            combined.contains("ping") || combined.contains("pong") -> "Тайм-аут пульса, соединение разорвано"
+            combined.contains("timeout") || combined.contains("timed out") -> "Время ожидания подключения истекло"
+            rawReason.equals("Не удалось подключиться", ignoreCase = true) && rawError.isNotBlank() -> "Не удалось подключиться: $rawError"
             rawReason.isNotBlank() && rawError.isNotBlank() && !rawReason.contains(rawError) -> "$rawReason: $rawError"
             rawReason.isNotBlank() -> rawReason
-            rawError.isNotBlank() -> "连接失败: $rawError"
-            else -> "连接已断开"
+            rawError.isNotBlank() -> "Не удалось подключиться: $rawError"
+            else -> "Соединение разорвано"
         }
     }
 
@@ -559,7 +559,7 @@ internal fun MainActivity.pasteBridgeUrl() {
         currentBridgeUrl = null
         val pasted = pasteBridgeUrlFromClipboard()
         if (pasted.isNullOrBlank()) {
-            connectionDetail = "剪贴板里没有可粘贴的地址"
+            connectionDetail = "В буфере обмена нет адреса для вставки"
             return
         }
         bridgeUrl = try {
@@ -568,16 +568,16 @@ internal fun MainActivity.pasteBridgeUrl() {
             pasted
         }
         currentConnectionId = resolveConnectionHistory(bridgeUrl)?.id
-        connectionDetail = "已粘贴 Bridge URL，点击连接即可"
+        connectionDetail = "Bridge URL вставлен, нажмите «Подключиться»"
     }
 
 internal fun MainActivity.ensureConnected(): Boolean {
         if (bridgeClient?.isOpen() != true) {
             connectionDetail =
                 if (autoReconnectEnabled && currentBridgeUrl != null) {
-                    "连接已断开，正在自动重连"
+                    "Соединение разорвано, выполняется автопереподключение"
                 } else {
-                    "请先连接 Linux Bridge"
+                    "Сначала подключитесь к Linux Bridge"
                 }
             showNotice(connectionDetail)
             return false
@@ -595,7 +595,7 @@ internal fun MainActivity.sendRequest(type: String, payload: JSONObject, handler
             request.put("type", type)
             request.put("payload", payload)
         } catch (error: JSONException) {
-            appendSystemNote("请求构造失败: ${error.message}")
+            appendSystemNote("Не удалось составить запрос: ${error.message}")
             return false
         }
 
@@ -607,8 +607,8 @@ internal fun MainActivity.sendRequest(type: String, payload: JSONObject, handler
             true
         } catch (error: IOException) {
             pendingRequests.remove(id)
-            appendSystemNote("发送失败: ${error.message}")
-            showNotice("发送失败: ${error.message}")
+            appendSystemNote("Не удалось отправить: ${error.message}")
+            showNotice("Не удалось отправить: ${error.message}")
             false
         }
     }
@@ -654,7 +654,7 @@ internal fun MainActivity.updateAutoReconnectMaxAttempts(maxAttempts: Int) {
             currentBridgeUrl = null
             selectedWorkspace = null
             currentPage = AppPage.Connection
-            connectionDetail = "重连次数已用尽"
+            connectionDetail = "Попытки переподключения исчерпаны"
             showNotice(connectionDetail)
         }
     }
@@ -696,10 +696,10 @@ internal fun MainActivity.scheduleReconnect(
                 reason + errorSuffix
             }
         connectionDetail = buildString {
-            append(detailReason.ifBlank { "连接已断开" })
-            append("，")
+            append(detailReason.ifBlank { "Соединение разорвано" })
+            append(",")
             append((delayMs / 1000L).coerceAtLeast(1L))
-            append(" 秒后自动重连")
+            append(" сек до автопереподключения")
         }
         showNotice(connectionDetail)
         mainHandler.postDelayed(reconnectRunnable, delayMs)
@@ -734,7 +734,7 @@ internal fun MainActivity.canScheduleReconnectAttempt(attempt: Int): Boolean {
 
 internal fun MainActivity.buildReconnectExhaustedDetail(baseDetail: String): String {
         if (autoReconnectEnabled && autoReconnectMaxAttempts > 0 && reconnectAttempt >= autoReconnectMaxAttempts) {
-            return "重连次数已用尽"
+            return "Попытки переподключения исчерпаны"
         }
         return baseDetail
     }
@@ -742,7 +742,7 @@ internal fun MainActivity.buildReconnectExhaustedDetail(baseDetail: String): Str
 internal fun MainActivity.normalizeBridgeUrl(input: String, requireToken: Boolean): String {
         val raw = input.trim()
         if (raw.isBlank()) {
-            if (requireToken) throw IllegalArgumentException("Bridge URL 不能为空")
+            if (requireToken) throw IllegalArgumentException("Bridge URL не может быть пустым")
             return ""
         }
 
@@ -755,7 +755,7 @@ internal fun MainActivity.normalizeBridgeUrl(input: String, requireToken: Boolea
         val path = if (slashIndex >= 0) beforeQuery.substring(slashIndex).ifBlank { "/" } else "/"
         val authorityParts = authority.split(':').filter { it.isNotBlank() }
         val host = authorityParts.firstOrNull()?.trim()
-            ?: throw IllegalArgumentException("URL host 不能为空")
+            ?: throw IllegalArgumentException("URL host не может быть пустым")
         val port = authorityParts.drop(1).firstOrNull { part -> part.all { it.isDigit() } }
             ?: prefs.getString(KEY_PORT, "8787")?.trim()?.takeIf { it.isNotBlank() }
             ?: "8787"
@@ -763,7 +763,7 @@ internal fun MainActivity.normalizeBridgeUrl(input: String, requireToken: Boolea
             .ifBlank { prefs.getString(KEY_TOKEN, "")?.trim().orEmpty() }
 
         if (requireToken && token.isBlank()) {
-            throw IllegalArgumentException("URL 里需要 token，例如 ?token=...")
+            throw IllegalArgumentException("В URL нужен token, например ?token=...")
         }
 
         val queryWithoutToken = query

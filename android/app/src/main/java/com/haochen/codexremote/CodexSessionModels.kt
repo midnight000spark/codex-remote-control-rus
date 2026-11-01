@@ -281,7 +281,7 @@ internal data class SessionInfo(
     fun previewLine(): String {
         if (preview.isNotBlank() && preview != title) return preview
         if (cwd.isNotBlank()) return cwd
-        return "没有预览内容"
+        return "Нет содержимого для предпросмотра"
     }
 
     fun updatedAtLabel(): String {
@@ -289,15 +289,15 @@ internal data class SessionInfo(
         val timestamp =
             raw.toLongOrNull()
                 ?: runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
-                ?: return raw.ifBlank { "刚刚" }
-        return formatBeijingDateTimeLabel(timestamp, fallback = "刚刚")
+                ?: return raw.ifBlank { "Только что" }
+        return formatBeijingDateTimeLabel(timestamp, fallback = "Только что")
     }
 
     fun metaLine(): String {
         val parts = mutableListOf<String>()
         if (model.isNotBlank()) parts.add(model)
         if (backend.isNotBlank()) parts.add(backend)
-        if (approvalPolicy.isNotBlank()) parts.add("审批 ${approvalPolicy.trim()}")
+        if (approvalPolicy.isNotBlank()) parts.add("Подтверждение ${approvalPolicy.trim()}")
         parts.add(sessionId.take(8))
         if (updatedAt.isNotBlank()) parts.add(updatedAtLabel())
         return parts.joinToString(" · ")
@@ -308,7 +308,7 @@ internal data class SessionInfo(
             permissions?.optString("id", "") ?: "",
             permissions?.optString("type", "") ?: "",
         ).trim()
-        return id.ifBlank { "默认" }
+        return id.ifBlank { "По умолчанию" }
     }
 
     fun sandboxSummary(): String {
@@ -324,7 +324,7 @@ internal data class SessionInfo(
             "workspaceWrite", "workspace-write" -> "workspaceWrite"
             "readOnly", "read-only" -> "readOnly"
             "externalSandbox" -> "external sandbox"
-            else -> "未提供"
+            else -> "Не указано"
         }
     }
 
@@ -342,14 +342,14 @@ internal data class SessionInfo(
     fun reasoningEffortSummary(): String {
         val effort = reasoningEffort.trim()
         return if (effort.isBlank()) {
-            "未提供"
+            "Не указано"
         } else {
             labelReasoningEffort(effort)
         }
     }
 
     fun modelSummary(): String {
-        val modelValue = model.trim().ifBlank { "未提供" }
+        val modelValue = model.trim().ifBlank { "Не указано" }
         val effortValue = reasoningEffort.trim()
         return if (effortValue.isBlank()) {
             modelValue
@@ -358,11 +358,11 @@ internal data class SessionInfo(
         }
     }
 
-    fun contextWindowSummary(): String = contextWindow?.let(::formatCountLabel) ?: "未提供"
+    fun contextWindowSummary(): String = contextWindow?.let(::formatCountLabel) ?: "Не указано"
 
-    fun lastTokenUsageSummary(): String = lastTokenUsage?.summary() ?: "未提供"
+    fun lastTokenUsageSummary(): String = lastTokenUsage?.summary() ?: "Не указано"
 
-    fun totalTokenUsageSummary(): String = totalTokenUsage?.summary() ?: "未提供"
+    fun totalTokenUsageSummary(): String = totalTokenUsage?.summary() ?: "Не указано"
 }
 
 internal data class TokenUsageSnapshot(
@@ -386,11 +386,11 @@ internal data class TokenUsageSnapshot(
 
     fun summary(): String {
         return buildList {
-            add("总 ${formatCountLabel(totalTokens)}")
-            if (inputTokens > 0) add("入 ${formatCountLabel(inputTokens)}")
-            if (cachedInputTokens > 0) add("缓存 ${formatCountLabel(cachedInputTokens)}")
-            if (outputTokens > 0) add("出 ${formatCountLabel(outputTokens)}")
-            if (reasoningOutputTokens > 0) add("推理 ${formatCountLabel(reasoningOutputTokens)}")
+            add("Всего ${formatCountLabel(totalTokens)}")
+            if (inputTokens > 0) add("Вход ${formatCountLabel(inputTokens)}")
+            if (cachedInputTokens > 0) add("Кэш ${formatCountLabel(cachedInputTokens)}")
+            if (outputTokens > 0) add("Выход ${formatCountLabel(outputTokens)}")
+            if (reasoningOutputTokens > 0) add("Рассуждения ${formatCountLabel(reasoningOutputTokens)}")
         }.joinToString(" · ").ifBlank { "0" }
     }
 
@@ -415,12 +415,12 @@ internal fun formatCountLabel(value: Int): String {
 
 internal fun labelReasoningEffort(effort: String): String {
     return when (effort.trim()) {
-        "none" -> "关闭思考 (none)"
-        "minimal" -> "极低 (minimal)"
-        "low" -> "低 (low)"
-        "medium" -> "中 (medium)"
-        "high" -> "高 (high)"
-        "xhigh" -> "极高 (xhigh)"
-        else -> effort.ifBlank { "未提供" }
+        "none" -> "Без рассуждений (none)"
+        "minimal" -> "Очень низкая (minimal)"
+        "low" -> "Низкая (low)"
+        "medium" -> "Средняя (medium)"
+        "high" -> "Высокая (high)"
+        "xhigh" -> "Очень высокая (xhigh)"
+        else -> effort.ifBlank { "Не указано" }
     }
 }

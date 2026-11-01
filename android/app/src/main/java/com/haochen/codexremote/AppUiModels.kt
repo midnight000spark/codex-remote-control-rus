@@ -155,7 +155,7 @@ internal data class ProjectGroup(
     val sessions: List<SessionInfo>,
 ) {
     val displayName: String
-        get() = path?.let { it.substringAfterLast('/').ifBlank { it } } ?: "未分类历史"
+        get() = path?.let { it.substringAfterLast('/').ifBlank { it } } ?: "История без категории"
 
     fun key(): String = path ?: "__uncategorized__"
 }
@@ -172,7 +172,7 @@ internal data class SessionInfoSheetState(
     val title: String,
     val rows: List<Pair<String, String>>,
     val canRebuildHistory: Boolean = false,
-    val sandboxRowLabel: String = "沙箱",
+    val sandboxRowLabel: String = "Песочница",
     val canSwitchToFullAccess: Boolean = false,
 )
 

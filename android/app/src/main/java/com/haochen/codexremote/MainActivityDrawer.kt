@@ -107,11 +107,11 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SectionTitle("侧边栏")
+                SectionTitle("Боковая панель")
                 IconButton(onClick = onCloseDrawer) {
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                        contentDescription = "收起侧边栏",
+                        contentDescription = "Свернуть боковую панель",
                         tint = uiMuted,
                         modifier = Modifier.size(20.dp),
                     )
@@ -138,7 +138,7 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "连接设置",
+                                text = "Настройки подключения",
                                 color = uiText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
@@ -163,7 +163,7 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                             },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("连接设置")
+                            Text("Настройки подключения")
                         }
                         Button(
                             onClick = { openNewChatDialog(currentWorkspacePath()) },
@@ -171,7 +171,7 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                         ) {
-                            Text("新对话")
+                            Text("Новый диалог")
                         }
                     }
                 }
@@ -191,13 +191,13 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text(
-                        text = "设置",
+                        text = "Настройки",
                         color = uiText,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                     )
                     Text(
-                        text = "自动重连、启动默认页、应用版本。",
+                        text = "Автопереподключение, страница запуска по умолчанию, версия приложения.",
                         color = uiMuted,
                         fontSize = 12.sp,
                     )
@@ -208,7 +208,7 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("打开设置")
+                        Text("Открыть настройки")
                     }
                 }
             }
@@ -220,28 +220,28 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SectionTitle("项目")
+                SectionTitle("Проект")
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = { requestSessionList() },
                         enabled = connected,
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     ) {
-                        Text("刷新", fontSize = 12.sp)
+                        Text("Обновить", fontSize = 12.sp)
                     }
                     TextButton(
                         onClick = { expandAllProjectGroups(projectGroups) },
                         enabled = projectGroups.isNotEmpty(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     ) {
-                        Text("全部展开", fontSize = 12.sp)
+                        Text("Развернуть всё", fontSize = 12.sp)
                     }
                     TextButton(
                         onClick = { collapseAllProjectGroups(projectGroups) },
                         enabled = projectGroups.isNotEmpty(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     ) {
-                        Text("全部折叠", fontSize = 12.sp)
+                        Text("Свернуть всё", fontSize = 12.sp)
                     }
                 }
             }
@@ -255,7 +255,7 @@ internal fun MainActivity.AppDrawerContent(onCloseDrawer: () -> Unit) {
                     border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
                 ) {
                     BodyText(
-                        text = if (connected) "连接后，项目和历史会话会显示在这里。" else "没有本地缓存的历史。连接 bridge 后会同步项目和会话。",
+                        text = if (connected) "После подключения здесь появятся проекты и история сессий." else "Истории в локальном кэше нет. После подключения к bridge проекты и сессии синхронизируются.",
                         modifier = Modifier.padding(14.dp),
                     )
                 }
@@ -347,7 +347,7 @@ internal fun MainActivity.ProjectGroupCard(
                 TextButton(onClick = onNewChat) {
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_input_add),
-                        contentDescription = "新对话",
+                        contentDescription = "Новый диалог",
                         tint = uiPrimary,
                         modifier = Modifier.size(22.dp),
                     )
@@ -356,7 +356,7 @@ internal fun MainActivity.ProjectGroupCard(
 
             if (expanded) {
                 if (group.sessions.isEmpty()) {
-                    BodyText("这个项目暂时还没有历史会话。")
+                    BodyText("У этого проекта пока нет истории сессий.")
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         visibleSessions.forEach { session ->
@@ -371,14 +371,14 @@ internal fun MainActivity.ProjectGroupCard(
                                 onClick = { setProjectGroupSessionListExpanded(group.key(), true) },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             ) {
-                                Text("展开本项目全部历史（+$hiddenCount）", fontSize = 12.sp)
+                                Text("Показать всю историю проекта (+$hiddenCount)", fontSize = 12.sp)
                             }
                         } else if (group.sessions.size > PROJECT_GROUP_DEFAULT_VISIBLE_SESSIONS) {
                             TextButton(
                                 onClick = { setProjectGroupSessionListExpanded(group.key(), false) },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             ) {
-                                Text("收起历史", fontSize = 12.sp)
+                                Text("Свернуть историю", fontSize = 12.sp)
                             }
                         }
                     }

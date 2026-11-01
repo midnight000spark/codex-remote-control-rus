@@ -28,7 +28,7 @@ internal fun MainActivity.sendApproval(requestId: String, action: ApprovalAction
                 approvalDebugLog {
                     "sendApproval response_ok requestId=$requestId activeTurnId=${activeTurnId.orEmpty()} pendingApprovals=${pendingApprovals.size}"
                 }
-                appendSystemNote("审批结果已提交")
+                appendSystemNote("Результат подтверждения отправлен")
                 removePendingApproval(requestId)
             }
 
@@ -37,9 +37,9 @@ internal fun MainActivity.sendApproval(requestId: String, action: ApprovalAction
             }
         })) {
             approvalDebugLog { "sendApproval send_failed requestId=$requestId" }
-            appendSystemNote("审批发送失败")
+            appendSystemNote("Не удалось отправить подтверждение")
         } else {
-            appendSystemNote("已发送审批: ${action.label}")
+            appendSystemNote("Подтверждение отправлено: ${action.label}")
         }
     }
 
@@ -52,17 +52,17 @@ internal fun MainActivity.buildApprovalPresentation(eventName: String, payload: 
         val cwd = payload.optString("cwd", "")
         val grantRoot = payload.optString("grantRoot", "")
         if (reason.isNotBlank()) lines.add(reason)
-        if (command.isNotBlank()) lines.add("命令: $command")
-        if (cwd.isNotBlank()) lines.add("目录: $cwd")
-        if (grantRoot.isNotBlank()) lines.add("授权目录: $grantRoot")
-        if (diffEntries.isNotEmpty()) lines.add("变更文件: ${diffEntries.size} 个")
+        if (command.isNotBlank()) lines.add("Команда: $command")
+        if (cwd.isNotBlank()) lines.add("Каталог: $cwd")
+        if (grantRoot.isNotBlank()) lines.add("Каталог с правами: $grantRoot")
+        if (diffEntries.isNotEmpty()) lines.add("Изменённые файлы: ${diffEntries.size} шт.")
         if (lines.isEmpty()) lines.add(safeJson(payload))
         return ApprovalPresentation(
             title = when (eventName) {
-                "item/fileChange/requestApproval", "applyPatchApproval" -> "文件修改需要审批"
-                "item/permissions/requestApproval" -> "权限提升需要审批"
-                "execCommandApproval", "item/commandExecution/requestApproval" -> "命令执行需要审批"
-                else -> "需要审批"
+                "item/fileChange/requestApproval", "applyPatchApproval" -> "Изменение файла требует подтверждения"
+                "item/permissions/requestApproval" -> "Повышение прав требует подтверждения"
+                "execCommandApproval", "item/commandExecution/requestApproval" -> "Выполнение команды требует подтверждения"
+                else -> "Требуется подтверждение"
             },
             detail = lines.joinToString("\n"),
             diffEntries = diffEntries,
@@ -74,7 +74,7 @@ internal fun MainActivity.buildApprovalActions(eventName: String, payload: JSONO
             val permissions = payload.optJSONObject("permissions") ?: JSONObject()
             return listOf(
                 ApprovalAction(
-                    label = "本回合允许",
+                    label = "Разрешено для этого хода",
                     responsePayload = JSONObject().apply {
                         put("permissions", cloneJsonValue(permissions))
                         put("scope", "turn")
@@ -82,14 +82,14 @@ internal fun MainActivity.buildApprovalActions(eventName: String, payload: JSONO
                     isPrimary = true,
                 ),
                 ApprovalAction(
-                    label = "本会话允许",
+                    label = "Разрешено для этой сессии",
                     responsePayload = JSONObject().apply {
                         put("permissions", cloneJsonValue(permissions))
                         put("scope", "session")
                     },
                 ),
                 ApprovalAction(
-                    label = "拒绝",
+                    label = "Отклонить",
                     responsePayload = JSONObject().apply {
                         put("error", "declined by user")
                     },
@@ -113,23 +113,23 @@ internal fun MainActivity.buildApprovalActions(eventName: String, payload: JSONO
         return when (eventName) {
             "execCommandApproval", "applyPatchApproval" -> listOf(
                 ApprovalAction(
-                    label = "接受",
+                    label = "Принять",
                     responsePayload = JSONObject().put("decision", "approved"),
                     isPrimary = true,
                 ),
                 ApprovalAction(
-                    label = "拒绝",
+                    label = "Отклонить",
                     responsePayload = JSONObject().put("decision", "denied"),
                 ),
             )
             else -> listOf(
                 ApprovalAction(
-                    label = "接受",
+                    label = "Принять",
                     responsePayload = JSONObject().put("decision", "accept"),
                     isPrimary = true,
                 ),
                 ApprovalAction(
-                    label = "拒绝",
+                    label = "Отклонить",
                     responsePayload = JSONObject().put("decision", "decline"),
                 ),
             )
@@ -154,13 +154,13 @@ internal fun MainActivity.labelApprovalDecision(eventName: String, rawDecision: 
             }
         if (decisionKey.isBlank()) return null
         return when (decisionKey) {
-            "accept", "approved" -> "接受"
-            "acceptForSession", "approved_for_session" -> "本会话允许"
-            "decline", "denied" -> "拒绝"
-            "cancel", "abort", "timed_out" -> "取消"
-            "acceptWithExecpolicyAmendment", "approved_execpolicy_amendment" -> "接受并记住规则"
-            "applyNetworkPolicyAmendment", "network_policy_amendment" -> "应用网络规则"
-            else -> if (eventName == "item/permissions/requestApproval") "允许" else decisionKey
+            "accept", "approved" -> "Принять"
+            "acceptForSession", "approved_for_session" -> "Разрешено для этой сессии"
+            "decline", "denied" -> "Отклонить"
+            "cancel", "abort", "timed_out" -> "Отмена"
+            "acceptWithExecpolicyAmendment", "approved_execpolicy_amendment" -> "Принять и запомнить правило"
+            "applyNetworkPolicyAmendment", "network_policy_amendment" -> "Применить сетевые правила"
+            else -> if (eventName == "item/permissions/requestApproval") "Разрешить" else decisionKey
         }
     }
 

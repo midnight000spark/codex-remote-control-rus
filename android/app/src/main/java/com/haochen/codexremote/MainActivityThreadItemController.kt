@@ -30,7 +30,7 @@ internal fun MainActivity.handleToolItem(eventName: String, item: JSONObject) {
         val itemId = item.optString("id", "").trim()
         if (itemId.isBlank()) return
         val title = if (eventName == "item/started") {
-            "${labelThreadItem(item)} 开始"
+            "${labelThreadItem(item)} Начало"
         } else {
             labelThreadItem(item)
         }
@@ -126,13 +126,13 @@ internal fun MainActivity.extractThreadItemImages(item: JSONObject): List<Conver
         return when (item.optString("type", "")) {
             "userMessage" -> extractConversationUserInputImages(item.optJSONArray("content"))
             "imageView" -> item.optString("path", "").trim().takeIf { it.isNotBlank() }?.let { path ->
-                listOf(ConversationImage(source = path, sourceType = ConversationImageSourceType.Local, alt = "查看的图片"))
+                listOf(ConversationImage(source = path, sourceType = ConversationImageSourceType.Local, alt = "Просматриваемые изображения"))
             }.orEmpty()
             "imageGeneration" -> {
                 val alt = firstNonEmpty(
                     item.optString("revisedPrompt", ""),
                     item.optString("revised_prompt", ""),
-                    "生成的图片",
+                    "Сгенерированные изображения",
                 )
                 val savedPath = firstNonEmpty(
                     item.optString("savedPath", ""),
@@ -181,49 +181,49 @@ internal fun MainActivity.formatToolItemDetails(item: JSONObject, eventName: Str
         when (item.optString("type", "")) {
             "commandExecution" -> {
                 if (eventName == "item/started") {
-                    item.optString("command", "").takeIf { it.isNotBlank() }?.let { lines.add("命令: $it") }
-                    item.optString("cwd", "").takeIf { it.isNotBlank() }?.let { lines.add("目录: $it") }
-                    item.optString("source", "").takeIf { it.isNotBlank() }?.let { lines.add("来源: $it") }
-                    item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("状态: $it") }
+                    item.optString("command", "").takeIf { it.isNotBlank() }?.let { lines.add("Команда: $it") }
+                    item.optString("cwd", "").takeIf { it.isNotBlank() }?.let { lines.add("Каталог: $it") }
+                    item.optString("source", "").takeIf { it.isNotBlank() }?.let { lines.add("Источник: $it") }
+                    item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("Статус: $it") }
                 } else {
-                    item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("状态: $it") }
-                    item.opt("exitCode").takeIf { it != null }?.let { lines.add("退出码: $it") }
-                    item.optString("aggregatedOutput", "").takeIf { it.isNotBlank() }?.let { lines.add("输出:\n$it") }
-                    item.opt("durationMs").takeIf { it != null }?.let { lines.add("耗时: ${it}ms") }
+                    item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("Статус: $it") }
+                    item.opt("exitCode").takeIf { it != null }?.let { lines.add("Код выхода: $it") }
+                    item.optString("aggregatedOutput", "").takeIf { it.isNotBlank() }?.let { lines.add("Вывод:\n$it") }
+                    item.opt("durationMs").takeIf { it != null }?.let { lines.add("Затрачено: ${it}ms") }
                 }
             }
 
             "mcpToolCall" -> {
-                item.optString("server", "").takeIf { it.isNotBlank() }?.let { lines.add("服务: $it") }
-                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("工具: $it") }
-                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("状态: $it") }
+                item.optString("server", "").takeIf { it.isNotBlank() }?.let { lines.add("Служба: $it") }
+                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("Инструмент: $it") }
+                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("Статус: $it") }
                 if (eventName == "item/completed") {
-                    item.opt("result")?.let { lines.add("结果: $it") }
-                    item.opt("error")?.let { lines.add("错误: $it") }
+                    item.opt("result")?.let { lines.add("Результат: $it") }
+                    item.opt("error")?.let { lines.add("Ошибка: $it") }
                 }
             }
 
             "dynamicToolCall" -> {
-                item.optString("namespace", "").takeIf { it.isNotBlank() }?.let { lines.add("命名空间: $it") }
-                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("工具: $it") }
-                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("状态: $it") }
+                item.optString("namespace", "").takeIf { it.isNotBlank() }?.let { lines.add("Пространство имён: $it") }
+                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("Инструмент: $it") }
+                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("Статус: $it") }
                 if (eventName == "item/completed") {
                     item.optJSONArray("contentItems")?.let { contentItems ->
-                        lines.add("结果条目: ${contentItems.length()} 项")
+                        lines.add("Элементы результата: ${contentItems.length()} элем.")
                         lines.add(contentItems.toString(2))
                     }
                 }
             }
 
             "collabAgentToolCall" -> {
-                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("工具: $it") }
-                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("状态: $it") }
-                item.optString("prompt", "").takeIf { it.isNotBlank() }?.let { lines.add("提示:\n$it") }
+                item.optString("tool", "").takeIf { it.isNotBlank() }?.let { lines.add("Инструмент: $it") }
+                item.optString("status", "").takeIf { it.isNotBlank() }?.let { lines.add("Статус: $it") }
+                item.optString("prompt", "").takeIf { it.isNotBlank() }?.let { lines.add("Подсказка:\n$it") }
             }
 
             else -> {
                 if (eventName == "item/started") {
-                    lines.add("开始")
+                    lines.add("Начало")
                 }
                 lines.add(formatJson(item))
             }

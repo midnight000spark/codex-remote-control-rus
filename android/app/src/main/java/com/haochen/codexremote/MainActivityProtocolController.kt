@@ -7,7 +7,7 @@ internal fun MainActivity.handleIncoming(text: String) {
         val message = try {
             JSONObject(text)
         } catch (error: JSONException) {
-            appendSystemNote("收到非 JSON 消息: $text")
+            appendSystemNote("Получено сообщение, не являющееся JSON: $text")
             return
         }
 
@@ -28,7 +28,7 @@ internal fun MainActivity.handleIncoming(text: String) {
                 if (entry != null) {
                     switchLocalSessionCache(entry)
                 }
-                connectionDetail = "Bridge 已就绪，正在拉取会话列表"
+                connectionDetail = "Bridge готов, загружаю список сессий"
                 currentPage = AppPage.Chat
                 requestSessionList()
                 requestModelList()
@@ -48,22 +48,22 @@ internal fun MainActivity.handleResponse(message: JSONObject) {
                 val errorText = extractErrorText(message.optJSONObject("error")).ifBlank { formatJson(message.optJSONObject("error")) }
                 callback.onError(errorText)
                 if (!callback.suppressDefaultErrorUi()) {
-                    appendSystemNote("请求失败: $errorText")
-                    showNotice("请求失败: $errorText")
+                    appendSystemNote("Не удалось выполнить запрос: $errorText")
+                    showNotice("Не удалось выполнить запрос: $errorText")
                 }
                 return
             }
             try {
                 callback.onResponse(message)
             } catch (error: JSONException) {
-                appendSystemNote("解析响应失败: ${error.message}")
+                appendSystemNote("Не удалось разобрать ответ: ${error.message}")
             }
             return
         }
         if (!ok) {
             val errorText = extractErrorText(message.optJSONObject("error")).ifBlank { formatJson(message.optJSONObject("error")) }
-            appendSystemNote("请求失败: $errorText")
-            showNotice("请求失败: $errorText")
+            appendSystemNote("Не удалось выполнить запрос: $errorText")
+            showNotice("Не удалось выполнить запрос: $errorText")
         }
     }
 
@@ -142,7 +142,7 @@ internal fun MainActivity.handleEvent(message: JSONObject) {
                     payload.optJSONObject("turn")?.optProtocolString("id") ?: "",
                 )
                 interruptingTurnId = null
-                updateLiveTurnStatus("已开始，等待输出…")
+                updateLiveTurnStatus("Начато, ожидание вывода…")
             }
 
             "item/agentMessage/delta" -> {

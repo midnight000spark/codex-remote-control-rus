@@ -73,7 +73,7 @@ internal fun MainActivity.ChatComposerImageStrip() {
                     strokeWidth = 2.dp,
                     color = uiPrimary,
                 )
-                Text("上传图片…", color = uiMuted, fontSize = 12.sp)
+                Text("Загружаю изображение…", color = uiMuted, fontSize = 12.sp)
             }
         }
     }

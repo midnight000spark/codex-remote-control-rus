@@ -5,19 +5,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal fun MainActivity.currentSessionLabel(): String {
-        val sessionId = activeSessionId ?: return "未选择会话"
+        val sessionId = activeSessionId ?: return "Сессия не выбрана"
         val info = sessions.firstOrNull { it.sessionId == sessionId }
         return if (info != null) {
-            "当前会话: ${info.titleLine()}"
+            "Текущая сессия: ${info.titleLine()}"
         } else {
-            "当前会话: ${shortId(sessionId)}"
+            "Текущая сессия: ${shortId(sessionId)}"
         }
     }
 
 internal fun MainActivity.buildStatusLine(): String {
-        val parts = mutableListOf(if (connected) "已连接" else "未连接")
-        activeSessionId?.let { parts.add("会话 ${shortId(it)}") }
-        activeTurnId?.let { parts.add("回合 ${shortId(it)}") }
+        val parts = mutableListOf(if (connected) "Подключено" else "Не подключено")
+        activeSessionId?.let { parts.add("Сессия ${shortId(it)}") }
+        activeTurnId?.let { parts.add("Ход ${shortId(it)}") }
         return parts.joinToString(" · ")
     }
 
@@ -31,16 +31,16 @@ internal fun MainActivity.connectionStatusHeadline(): String {
                 return connectionFailureHeadline(detail, reconnectScheduled)
             }
             return if (name != null) {
-                if (reconnectScheduled || reconnectAttempt > 0) "自动重连：$name" else "正在连接：$name"
+                if (reconnectScheduled || reconnectAttempt > 0) "Автопереподключение: $name" else "Подключение: $name"
             } else {
-                "当前未连接"
+                "Сейчас нет подключения"
             }
         }
         val name = entry?.displayName()?.takeIf { it.isNotBlank() }
         return if (name != null) {
-            "当前连接：$name"
+            "Текущее подключение: $name"
         } else {
-            "当前已连接"
+            "Сейчас подключено"
         }
     }
 
@@ -57,9 +57,9 @@ internal fun MainActivity.connectionStatusDetailText(): String {
                     entry.maskedUrl.takeIf { it.isNotBlank() }?.let(::add)
                     connectionFailureSupportingText(detail)
                         ?.takeIf { it.isNotBlank() }
-                        ?.let { add("详细信息：$it") }
+                        ?.let { add("Подробности: $it") }
                 } else {
-                    add(if (reconnectScheduled || reconnectAttempt > 0) "正在自动重连" else "正在建立连接")
+                    add(if (reconnectScheduled || reconnectAttempt > 0) "Выполняется автопереподключение" else "Устанавливаю соединение")
                     entry.maskedUrl.takeIf { it.isNotBlank() }?.let(::add)
                 }
             }.joinToString("\n")
@@ -73,7 +73,7 @@ internal fun MainActivity.drawerConnectionSummaryText(): String {
         val entry = findConnectionHistoryById(currentConnectionId)
             ?: target?.let { url -> connectionHistory.firstOrNull { it.url == url } ?: BridgeHistoryEntry.fromUrl(url) }
         val label = entry?.displayName()?.takeIf { it.isNotBlank() } ?: target
-        return label?.let { "连接到 $it" } ?: "未连接"
+        return label?.let { "Подключиться к $it" } ?: "Не подключено"
     }
 
 internal fun MainActivity.currentConnectionEntry(): BridgeHistoryEntry? {
@@ -87,11 +87,11 @@ internal fun MainActivity.currentConnectionEntry(): BridgeHistoryEntry? {
 
 internal fun MainActivity.approvalPolicyDescription(policy: String): String {
         return when (policy.trim()) {
-            "untrusted" -> "最保守。更广泛地要求审批，适合不信任当前环境时使用。"
-            "on-request" -> "默认推荐。Codex 主动请求时再审批。"
-            "on-failure" -> "先尝试执行，失败后再请求审批。"
-            "never" -> "不进行审批，按当前会话权限直接执行。"
-            else -> "将按该 approvalPolicy 原样下发给 Codex。"
+            "untrusted" -> "Самый осторожный вариант. Подтверждение требуется чаще — подходит, если вы не доверяете текущему окружению."
+            "on-request" -> "Рекомендуется по умолчанию. Подтверждение запрашивается, когда Codex сам его инициирует."
+            "on-failure" -> "Сначала пытается выполнить, при сбое запрашивает подтверждение."
+            "never" -> "Без подтверждений — выполняет сразу в рамках прав текущей сессии."
+            else -> "Будет передано Codex как есть в этом approvalPolicy."
         }
     }
 
@@ -104,15 +104,15 @@ internal fun MainActivity.showNotice(message: String) {
 
 internal fun isConnectionFailureDetail(detail: String): Boolean {
         val normalized = detail.trim()
-        return normalized.startsWith("连接失败") ||
-            normalized.startsWith("连接超时") ||
-            normalized.startsWith("token 不正确") ||
-            normalized.startsWith("连接已断开") ||
-            normalized.startsWith("心跳超时") ||
-            normalized.startsWith("重连次数已用尽") ||
-            normalized.startsWith("握手超时") ||
-            normalized.startsWith("Bridge 握手超时") ||
-            normalized.startsWith("已达到最大自动重连次数")
+        return normalized.startsWith("Не удалось подключиться") ||
+            normalized.startsWith("Время ожидания подключения истекло") ||
+            normalized.startsWith("token неверный") ||
+            normalized.startsWith("Соединение разорвано") ||
+            normalized.startsWith("Тайм-аут пульса") ||
+            normalized.startsWith("Попытки переподключения исчерпаны") ||
+            normalized.startsWith("Тайм-аут рукопожатия") ||
+            normalized.startsWith("Тайм-аут рукопожатия Bridge") ||
+            normalized.startsWith("Достигнуто максимальное число автопереподключений")
     }
 
 internal fun connectionFailureHeadline(
@@ -121,30 +121,30 @@ internal fun connectionFailureHeadline(
     ): String {
         val normalized = detail.trim()
         return when {
-            normalized.startsWith("token 不正确") -> "认证失败，请检查 token"
-            normalized.startsWith("心跳超时") -> "连接已中断，未收到心跳响应"
-            normalized.startsWith("连接超时") -> "连接超时，请检查网络或主机地址"
-            normalized.startsWith("Bridge 握手超时") || normalized.startsWith("握手超时") -> "Bridge 响应超时，未完成握手"
-            normalized.startsWith("已达到最大自动重连次数") || normalized.startsWith("重连次数已用尽") -> "自动重连已停止，请手动重试"
-            normalized.contains("已达到最大自动重连次数") -> "自动重连已停止，请手动重试"
-            normalized.startsWith("连接已断开") ->
-                if (reconnecting) "连接已断开，正在重试" else "连接已断开，请重新连接"
-            normalized.startsWith("连接失败") -> "连接失败，请稍后重试"
-            else -> normalized.ifBlank { "当前未连接" }
+            normalized.startsWith("token неверный") -> "Ошибка аутентификации, проверьте token"
+            normalized.startsWith("Тайм-аут пульса") -> "Соединение прервано, ответ на пульс не получен"
+            normalized.startsWith("Время ожидания подключения истекло") -> "Время ожидания подключения истекло, проверьте сеть или адрес хоста"
+            normalized.startsWith("Тайм-аут рукопожатия Bridge") || normalized.startsWith("Тайм-аут рукопожатия") -> "Тайм-аут ответа Bridge, рукопожатие не завершено"
+            normalized.startsWith("Достигнуто максимальное число автопереподключений") || normalized.startsWith("Попытки переподключения исчерпаны") -> "Автопереподключение остановлено, повторите вручную"
+            normalized.contains("Достигнуто максимальное число автопереподключений") -> "Автопереподключение остановлено, повторите вручную"
+            normalized.startsWith("Соединение разорвано") ->
+                if (reconnecting) "Соединение разорвано, повторяю попытку" else "Соединение разорвано, подключитесь заново"
+            normalized.startsWith("Не удалось подключиться") -> "Не удалось подключиться, повторите позже"
+            else -> normalized.ifBlank { "Сейчас нет подключения" }
         }
     }
 
 internal fun connectionFailureSupportingText(detail: String): String? {
         val normalized = detail.trim()
         return when {
-            normalized.startsWith("token 不正确") -> null
-            normalized.startsWith("已达到最大自动重连次数") || normalized.startsWith("重连次数已用尽") -> null
-            normalized.contains("已达到最大自动重连次数") -> null
-            normalized.startsWith("连接超时") -> null
-            normalized.startsWith("心跳超时") -> null
-            normalized.startsWith("Bridge 握手超时") || normalized.startsWith("握手超时") -> null
-            normalized.startsWith("连接失败:") -> normalized.removePrefix("连接失败:").trim()
-            normalized.startsWith("连接已断开:") -> normalized.removePrefix("连接已断开:").trim()
+            normalized.startsWith("token неверный") -> null
+            normalized.startsWith("Достигнуто максимальное число автопереподключений") || normalized.startsWith("Попытки переподключения исчерпаны") -> null
+            normalized.contains("Достигнуто максимальное число автопереподключений") -> null
+            normalized.startsWith("Время ожидания подключения истекло") -> null
+            normalized.startsWith("Тайм-аут пульса") -> null
+            normalized.startsWith("Тайм-аут рукопожатия Bridge") || normalized.startsWith("Тайм-аут рукопожатия") -> null
+            normalized.startsWith("Не удалось подключиться:") -> normalized.removePrefix("Не удалось подключиться:").trim()
+            normalized.startsWith("Соединение разорвано:") -> normalized.removePrefix("Соединение разорвано:").trim()
             else -> normalized.takeIf { it.contains(':') }
         }
     }

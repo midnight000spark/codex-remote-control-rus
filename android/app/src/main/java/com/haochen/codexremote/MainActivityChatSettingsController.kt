@@ -28,19 +28,19 @@ internal fun MainActivity.persistSelectedSandbox(sandbox: String) {
 }
 
 internal fun MainActivity.chatReasoningEffortOptions(modelId: String): List<SelectionMenuOption> {
-    return listOf(SelectionMenuOption("", "默认", "使用模型默认思考强度。")) + reasoningEffortOptionsForModel(modelId)
+    return listOf(SelectionMenuOption("", "По умолчанию", "Используется интенсивность рассуждений модели по умолчанию.")) + reasoningEffortOptionsForModel(modelId)
 }
 
 internal fun MainActivity.reasoningEffortShortLabel(effort: String): String {
-    return effort.trim().ifBlank { "默认" }
+    return effort.trim().ifBlank { "По умолчанию" }
 }
 
 internal fun MainActivity.reasoningSummaryOptions(): List<SelectionMenuOption> {
     return listOf(
-        SelectionMenuOption("none", "关闭", "不请求推理摘要。"),
-        SelectionMenuOption("auto", "自动", "由 Codex 自动决定摘要粒度。"),
-        SelectionMenuOption("concise", "简短", "显示较短的推理摘要。"),
-        SelectionMenuOption("detailed", "详细", "显示更详细的推理摘要。"),
+        SelectionMenuOption("none", "Закрыть", "Не запрашивать сводку рассуждений."),
+        SelectionMenuOption("auto", "Авто", "Степень детализации сводки Codex выбирает сам."),
+        SelectionMenuOption("concise", "Кратко", "Показывать краткую сводку рассуждений."),
+        SelectionMenuOption("detailed", "Подробно", "Показывать более подробную сводку рассуждений."),
     )
 }
 
@@ -52,14 +52,14 @@ internal fun normalizeReasoningSummary(value: String?): String {
 }
 
 internal fun MainActivity.reasoningSummaryLabel(summary: String): String {
-    return reasoningSummaryOptions().firstOrNull { it.value == normalizeReasoningSummary(summary) }?.label ?: "自动"
+    return reasoningSummaryOptions().firstOrNull { it.value == normalizeReasoningSummary(summary) }?.label ?: "Авто"
 }
 
 internal fun MainActivity.chatModeOptions(): List<SelectionMenuOption> {
     return listOf(
-        SelectionMenuOption(ChatMode.Default.preferenceValue(), "普通", "直接执行当前请求。"),
-        SelectionMenuOption(ChatMode.Plan.preferenceValue(), "Plan", "先产出方案，等待确认后再执行。"),
-        SelectionMenuOption(ChatMode.Goal.preferenceValue(), "Goal", "围绕一个目标持续推进。"),
+        SelectionMenuOption(ChatMode.Default.preferenceValue(), "Обычный", "Выполнить текущий запрос сразу."),
+        SelectionMenuOption(ChatMode.Plan.preferenceValue(), "Plan", "Сначала выдаёт план, выполняет после подтверждения."),
+        SelectionMenuOption(ChatMode.Goal.preferenceValue(), "Goal", "Последовательно продвигаться к одной цели."),
     )
 }
 
@@ -81,7 +81,7 @@ internal fun chatModeFromPreference(value: String?): ChatMode {
 
 internal fun MainActivity.chatModeLabel(mode: ChatMode = selectedChatMode): String {
     return when (mode) {
-        ChatMode.Default -> "普通"
+        ChatMode.Default -> "Обычный"
         ChatMode.Plan -> "Plan"
         ChatMode.Goal -> "Goal"
     }
@@ -97,9 +97,9 @@ internal fun normalizeSandboxPreference(value: String?): String {
 
 internal fun MainActivity.sandboxShortLabel(sandbox: String = selectedSandbox): String {
     return when (normalizeSandboxPreference(sandbox)) {
-        "readOnly" -> "只读"
-        "dangerFullAccess" -> "完整访问"
-        else -> "工作区"
+        "readOnly" -> "Только чтение"
+        "dangerFullAccess" -> "Полный доступ"
+        else -> "Рабочая область"
     }
 }
 
@@ -155,7 +155,7 @@ internal fun MainActivity.buildCollaborationModePayload(modelId: String, effort:
 
 internal fun MainActivity.modelToolbarLabel(): String {
     val model = resolveModelForSend()
-    val modelLabel = modelInfoFor(model)?.displayName ?: model.ifBlank { "模型" }
+    val modelLabel = modelInfoFor(model)?.displayName ?: model.ifBlank { "Модель" }
     val effort = reasoningEffortShortLabel(selectedReasoningEffort)
     return "$modelLabel · $effort"
 }
@@ -194,7 +194,7 @@ internal fun MainActivity.setActiveGoal(objective: String, tokenBudgetText: Stri
     val sessionId = activeSessionId?.takeIf { it.isNotBlank() } ?: return
     val normalizedObjective = objective.trim()
     if (normalizedObjective.isBlank()) {
-        showNotice("请先填写目标")
+        showNotice("Сначала заполните цель")
         return
     }
     val budget = tokenBudgetText.trim().toIntOrNull()?.takeIf { it > 0 }
@@ -208,7 +208,7 @@ internal fun MainActivity.setActiveGoal(objective: String, tokenBudgetText: Stri
             override fun onResponse(response: JSONObject) {
                 activeThreadGoal = ThreadGoalState.fromJson(response.optJSONObject("payload")?.optJSONObject("goal"))
                 selectChatMode(ChatMode.Goal)
-                showNotice("目标已设置")
+                showNotice("Цель задана")
             }
         })) {
         return
@@ -224,7 +224,7 @@ internal fun MainActivity.clearActiveGoal() {
                 if (selectedChatMode == ChatMode.Goal) {
                     selectChatMode(ChatMode.Default)
                 }
-                showNotice("目标已清除")
+                showNotice("Цель очищена")
             }
         })) {
         return

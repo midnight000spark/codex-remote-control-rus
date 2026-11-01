@@ -112,7 +112,7 @@ internal fun MainActivity.CodeBrowserPage(
             ?: state.selectedPath?.takeIf { it.isNotBlank() }?.let {
                 compactDiffDisplayPath(it, state.basePath, maxLength = 96)
             }
-            ?: "未选择文件") + state.lineSuffixLabel()
+            ?: "Файл не выбран") + state.lineSuffixLabel()
 
     LaunchedEffect(state.conversationItemId, state.mode, state.selectedPath, selectedDiffText, state.fileReadState) {
         val needsFileMetadata =
@@ -141,7 +141,7 @@ internal fun MainActivity.CodeBrowserPage(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (hasDiffContent) "文件修改" else "文件浏览",
+                    text = if (hasDiffContent) "Изменение файла" else "Просмотр файлов",
                     color = uiText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -188,9 +188,9 @@ internal fun MainActivity.CodeBrowserPage(
                         ) {
                             Text(
                                 if (fileListExpanded) {
-                                    "收起文件列表"
+                                    "Свернуть список файлов"
                                 } else {
-                                    "展开剩余 ${state.diffEntries.size - visibleEntries.size} 个文件"
+                                    "Показать остальные ${state.diffEntries.size - visibleEntries.size} файлов"
                                 },
                             )
                         }
@@ -207,7 +207,7 @@ internal fun MainActivity.CodeBrowserPage(
                     onClick = { setCodeBrowserMode(CodeBrowserMode.Diff) },
                 )
                 CodeBrowserModeButton(
-                    text = "文件",
+                    text = "Файл",
                     selected = state.mode == CodeBrowserMode.File,
                     enabled = state.canReadSelectedFile(),
                     modifier = Modifier.weight(1f),
@@ -242,7 +242,7 @@ internal fun MainActivity.CodeBrowserPage(
                             }
                         } else if (selectedDiffText.isBlank()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                BodyText("这个条目暂时没有可展示的 diff。")
+                                BodyText("Для этого элемента пока нет diff для отображения.")
                             }
                         } else {
                             Column(
@@ -289,7 +289,7 @@ internal fun MainActivity.CodeBrowserPage(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        BodyText("正在准备读取文件内容…")
+                                        BodyText("Готовлюсь читать содержимое файла…")
                                     }
                                 }
                             }
@@ -544,7 +544,7 @@ internal fun MainActivity.CodeBrowserTextPane(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (renderedContent?.lightweight == true) {
                         Text(
-                            text = "大文件已切换到轻量渲染，优先保证打开速度。",
+                            text = "Большие файлы переключены на облегчённый рендеринг — в приоритете скорость открытия.",
                             color = uiMuted,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(horizontal = 10.dp),
@@ -584,7 +584,7 @@ internal fun MainActivity.CodeBrowserLineList(
         if (renderedContent?.lightweight == true) {
             item(key = "lightweight") {
                 Text(
-                    text = "大文件已切换到轻量渲染，优先保证打开速度。",
+                    text = "Большие файлы переключены на облегчённый рендеринг — в приоритете скорость открытия.",
                     color = uiMuted,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),

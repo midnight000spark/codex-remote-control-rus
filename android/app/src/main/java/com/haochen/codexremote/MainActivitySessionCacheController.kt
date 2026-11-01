@@ -22,10 +22,10 @@ internal fun MainActivity.clearAllSessionCaches() {
     activeSessionCacheKey = if (connected) reloadCacheKey else sessionCacheKeyForCurrentConnection()
     deleteAllSessionCacheFiles()
     if (connected) {
-        showNotice("已清除全部缓存，正在重新加载")
+        showNotice("Весь кэш очищен, перезагружаю")
         requestSessionList()
     } else {
-        showNotice("已清除全部缓存")
+        showNotice("Весь кэш очищен")
     }
 }
 
@@ -36,14 +36,14 @@ internal fun MainActivity.clearSessionCacheForConnection(entry: BridgeHistoryEnt
         clearVisibleSessionStateAfterCacheReset()
         activeSessionCacheKey = if (connected) sessionCacheReloadKey(cacheKey) else sessionCacheKeyForCurrentConnection()
         if (connected) {
-            showNotice("已删除本地缓存，正在重新加载")
+            showNotice("Локальный кэш удалён, перезагружаю")
             requestSessionList()
         } else {
-            showNotice("已删除本地缓存")
+            showNotice("Локальный кэш удалён")
         }
         return
     }
-    showNotice("已删除本地缓存")
+    showNotice("Локальный кэш удалён")
 }
 
 internal fun MainActivity.hasLocalSessionCacheForConnection(entry: BridgeHistoryEntry): Boolean {

@@ -93,7 +93,7 @@ internal fun MainActivity.buildConversationSnapshotThreadItem(entry: JSONObject)
                 val status = item.optString("status", "").trim()
                 ConversationItem.FileChange(
                     id = buildConversationItemId("file_change", itemId.ifBlank { turnId }, turnId),
-                    title = if (status == "inProgress") "文件修改中" else "文件修改",
+                    title = if (status == "inProgress") "Изменение файлов" else "Изменение файла",
                     summary = buildFileChangeSummary(status, diffEntries, fallbackDiff = null),
                     status = status,
                     diffEntries = diffEntries,
@@ -123,7 +123,7 @@ internal fun MainActivity.buildConversationSnapshotTurnStatus(entry: JSONObject)
                 errorText
             } else {
                 buildString {
-                    append("当前回合结束: ${if (status.isNotBlank()) status else "unknown"}")
+                    append("Текущий ход завершён: ${if (status.isNotBlank()) status else "unknown"}")
                     if (errorText.isNotBlank()) {
                         append('\n')
                         append(errorText)
@@ -164,7 +164,7 @@ internal fun MainActivity.updateLiveTurnStatusFromSnapshot(
         val status = inferLiveTurnStatusFromSnapshot(payload)
         when {
             status != null -> updateLiveTurnStatus(status)
-            hasIncrementalChanges || snapshotGrew || snapshotChanged -> updateLiveTurnStatus("正在同步…")
+            hasIncrementalChanges || snapshotGrew || snapshotChanged -> updateLiveTurnStatus("Синхронизирую…")
             activeTurnId == null -> updateLiveTurnStatus(null)
             else -> Unit
         }
@@ -212,7 +212,7 @@ internal fun MainActivity.inferLiveTurnStatusFromSnapshot(payload: JSONObject?):
 
 internal fun MainActivity.inferLiveTurnStatusFromActiveTurns(activeTurns: JSONArray?): String? {
         if (activeTurns == null || activeTurns.length() == 0) return null
-        val activeTurn = activeTurns.optJSONObject(activeTurns.length() - 1) ?: return "回合进行中…"
+        val activeTurn = activeTurns.optJSONObject(activeTurns.length() - 1) ?: return "Идёт ход…"
         val eventStatus = when (activeTurn.optString("last_event", "")) {
             "item/agentMessage/delta" -> buildActiveTurnOutputStatus(activeTurn)
             "item/fileChange/patchUpdated", "turn/diff/updated" -> buildActiveTurnFileStatus(activeTurn)
@@ -223,58 +223,58 @@ internal fun MainActivity.inferLiveTurnStatusFromActiveTurns(activeTurns: JSONAr
             "execCommandApproval" -> buildActiveTurnApprovalStatus(activeTurn)
             "item/completed" -> null
             "item/started" -> null
-            "turn/input" -> "已开始，等待输出…"
+            "turn/input" -> "Начато, ожидание вывода…"
             else -> null
         }
         return eventStatus ?: when (activeTurn.optString("last_item_type", "")) {
             "agentMessage" -> buildActiveTurnOutputStatus(activeTurn)
             "fileChange" -> buildActiveTurnFileStatus(activeTurn)
-            "commandExecution" -> joinLiveStatus("正在执行命令", activeTurn.optString("detail", ""))
-            "reasoning" -> "正在思考…"
-            "plan" -> "正在整理计划…"
-            "mcpToolCall" -> joinLiveStatus("正在调用工具", activeTurn.optString("detail", ""))
-            "dynamicToolCall" -> joinLiveStatus("正在运行工具", activeTurn.optString("detail", ""))
-            "collabAgentToolCall" -> joinLiveStatus("正在处理子任务", activeTurn.optString("detail", ""))
-            "userMessage" -> "已开始，等待输出…"
-            else -> "回合进行中…"
+            "commandExecution" -> joinLiveStatus("Выполняю команду", activeTurn.optString("detail", ""))
+            "reasoning" -> "Думаю…"
+            "plan" -> "Составляю план…"
+            "mcpToolCall" -> joinLiveStatus("Вызываю инструмент", activeTurn.optString("detail", ""))
+            "dynamicToolCall" -> joinLiveStatus("Запускаю инструмент", activeTurn.optString("detail", ""))
+            "collabAgentToolCall" -> joinLiveStatus("Обрабатываю подзадачу", activeTurn.optString("detail", ""))
+            "userMessage" -> "Начато, ожидание вывода…"
+            else -> "Идёт ход…"
         }
     }
 
 internal fun MainActivity.buildActiveTurnOutputStatus(activeTurn: JSONObject): String {
         val outputChars = activeTurn.optInt("output_chars", 0)
-        return if (outputChars > 0) joinLiveStatus("正在输出", "约 $outputChars 字") else "正在输出…"
+        return if (outputChars > 0) joinLiveStatus("Вывод", "около $outputChars символов") else "Вывод…"
     }
 
 internal fun MainActivity.buildActiveTurnFileStatus(activeTurn: JSONObject): String {
         val detail = firstNonEmpty(
             activeTurn.optString("detail", ""),
             activeTurn.optString("diff_stats", ""),
-            activeTurn.optInt("file_count", 0).takeIf { it > 0 }?.let { "$it 个文件" } ?: "",
+            activeTurn.optInt("file_count", 0).takeIf { it > 0 }?.let { "$it файлов" } ?: "",
         )
-        return joinLiveStatus("正在改文件", detail)
+        return joinLiveStatus("Изменяю файлы", detail)
     }
 
 internal fun MainActivity.buildActiveTurnApprovalStatus(activeTurn: JSONObject): String {
         val label = when (activeTurn.optString("approval_type", "")) {
-            "command" -> "等待命令审批"
-            "fileChange" -> "等待文件审批"
-            "permission" -> "等待权限审批"
-            else -> "等待审批"
+            "command" -> "Ожидание подтверждения команды"
+            "fileChange" -> "Ожидание подтверждения файла"
+            "permission" -> "Ожидание подтверждения прав"
+            else -> "Ожидание подтверждения"
         }
         return joinLiveStatus(label, activeTurn.optString("detail", ""))
     }
 
 internal fun MainActivity.inferLiveTurnStatusFromActiveTurnItem(item: JSONObject): String? {
         return when (item.optString("type", "")) {
-            "agentMessage" -> "正在输出…"
-            "fileChange" -> "正在改文件…"
-            "commandExecution" -> "正在执行命令…"
-            "reasoning" -> "正在思考…"
-            "plan" -> "正在整理计划…"
-            "mcpToolCall" -> "正在调用工具…"
-            "dynamicToolCall" -> "正在运行工具…"
-            "collabAgentToolCall" -> "正在处理子任务…"
-            "userMessage" -> "已开始，等待输出…"
+            "agentMessage" -> "Вывод…"
+            "fileChange" -> "Изменяю файлы…"
+            "commandExecution" -> "Выполняю команду…"
+            "reasoning" -> "Думаю…"
+            "plan" -> "Составляю план…"
+            "mcpToolCall" -> "Вызываю инструмент…"
+            "dynamicToolCall" -> "Запускаю инструмент…"
+            "collabAgentToolCall" -> "Обрабатываю подзадачу…"
+            "userMessage" -> "Начато, ожидание вывода…"
             else -> null
         }
     }
@@ -284,8 +284,8 @@ internal fun MainActivity.inferLiveTurnStatusFromSession(session: JSONObject?): 
         val thread = session.optJSONObject("thread") ?: session
         inferLiveTurnStatusFromThreadTurns(thread)?.let { return it }
         return when (threadStatusType(thread.opt("status"))) {
-            "active", "running" -> "回合进行中…"
-            "systemError" -> "Codex 响应异常"
+            "active", "running" -> "Идёт ход…"
+            "systemError" -> "Аномальный ответ Codex"
             else -> null
         }
     }
@@ -297,12 +297,12 @@ internal fun MainActivity.inferLiveTurnStatusFromThreadTurns(thread: JSONObject)
             val status = turn.optString("status", "").trim()
             val errorText = extractErrorText(turn.optJSONObject("error"))
             when {
-                errorText.isNotBlank() -> return "Codex 响应异常"
-                status == "inProgress" -> return inferLiveTurnStatusFromThreadTurn(turn) ?: "回合进行中…"
-                status == "failed" -> return "Codex 响应异常"
+                errorText.isNotBlank() -> return "Аномальный ответ Codex"
+                status == "inProgress" -> return inferLiveTurnStatusFromThreadTurn(turn) ?: "Идёт ход…"
+                status == "failed" -> return "Аномальный ответ Codex"
                 status == "completed" -> Unit
                 status == "interrupted" -> Unit
-                status.isNotBlank() -> return "回合进行中…"
+                status.isNotBlank() -> return "Идёт ход…"
             }
         }
         return null
@@ -334,8 +334,8 @@ internal fun MainActivity.inferLiveTurnStatusFromSnapshotEntries(entries: JSONAr
                     val status = entry.optString("status", "").trim()
                     val errorText = extractErrorText(entry.optJSONObject("error"))
                     return when {
-                        errorText.isNotBlank() -> "Codex 响应异常"
-                        status == "failed" -> "Codex 响应异常"
+                        errorText.isNotBlank() -> "Аномальный ответ Codex"
+                        status == "failed" -> "Аномальный ответ Codex"
                         status == "interrupted" -> null
                         else -> null
                     }
@@ -345,11 +345,11 @@ internal fun MainActivity.inferLiveTurnStatusFromSnapshotEntries(entries: JSONAr
                     val itemStatus = item.optString("status", "").trim()
                     if (itemStatus == "inProgress") {
                         return when (item.optString("type", "")) {
-                            "fileChange" -> "正在改文件…"
-                            "commandExecution" -> "正在执行命令…"
-                            "reasoning" -> "正在思考…"
-                            "plan" -> "正在整理计划…"
-                            else -> "回合进行中…"
+                            "fileChange" -> "Изменяю файлы…"
+                            "commandExecution" -> "Выполняю команду…"
+                            "reasoning" -> "Думаю…"
+                            "plan" -> "Составляю план…"
+                            else -> "Идёт ход…"
                         }
                     }
                 }
@@ -387,7 +387,7 @@ internal fun MainActivity.inferOpenTurnLiveStatusFromSnapshotEntries(entries: JS
 
         val openTurnId = startedTurns.lastOrNull { turnId -> !completedTurns.contains(turnId) } ?: return null
         val item = lastItemsByTurn[openTurnId]
-        return item?.let(::inferLiveTurnStatusFromActiveTurnItem) ?: "回合进行中…"
+        return item?.let(::inferLiveTurnStatusFromActiveTurnItem) ?: "Идёт ход…"
     }
 
 private fun JSONArray.snapshotSignature(): String {

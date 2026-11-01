@@ -23,12 +23,12 @@ internal suspend fun MainActivity.addComposerImageAttachments(uris: List<Uri>) {
     val sessionId = activeSessionId?.takeIf { it.isNotBlank() }
     val activeBridgeUrl = (currentBridgeUrl ?: bridgeUrl).trim()
     if (sessionId == null || activeBridgeUrl.isBlank()) {
-        showNotice("请先连接并选择会话")
+        showNotice("Сначала подключитесь и выберите сессию")
         return
     }
     val remaining = (MAX_COMPOSER_IMAGES - composerImageAttachments.size).coerceAtLeast(0)
     if (remaining == 0) {
-        showNotice("最多添加 $MAX_COMPOSER_IMAGES 张图片")
+        showNotice("Можно добавить не более $MAX_COMPOSER_IMAGES изображений")
         return
     }
     val selected = uris.distinct().take(remaining)
@@ -44,7 +44,7 @@ internal suspend fun MainActivity.addComposerImageAttachments(uris: List<Uri>) {
                     readAndUploadComposerImage(uri, sessionId, activeBridgeUrl)
                 }
             }.onFailure { error ->
-                lastError = error.message ?: "未知错误"
+                lastError = error.message ?: "Неизвестная ошибка"
             }.getOrNull() ?: continue
             if (activeSessionId != sessionId || (currentBridgeUrl ?: bridgeUrl).trim() != activeBridgeUrl) {
                 break
@@ -56,11 +56,11 @@ internal suspend fun MainActivity.addComposerImageAttachments(uris: List<Uri>) {
         composerImageUploadInProgress = false
     }
     if (uris.size > selected.size) {
-        showNotice("最多添加 $MAX_COMPOSER_IMAGES 张图片")
+        showNotice("Можно добавить не более $MAX_COMPOSER_IMAGES изображений")
     } else if (added == 0 && lastError != null) {
-        showNotice("添加图片失败：$lastError")
+        showNotice("Не удалось добавить изображение: $lastError")
     } else if (lastError != null) {
-        showNotice("部分图片添加失败：$lastError")
+        showNotice("Не удалось добавить часть изображений: $lastError")
     }
 }
 
@@ -82,12 +82,12 @@ private fun MainActivity.readAndUploadComposerImage(
         ?.trim()
         ?.lowercase()
         ?.takeIf { it.startsWith("image/") }
-        ?: error("无法识别图片类型")
+        ?: error("Не удалось определить тип изображения")
     val bytes = contentResolver.openInputStream(uri)?.use(::readComposerImageBytes)
-        ?: error("无法读取图片")
-    val preview = decodeComposerImagePreview(bytes) ?: error("无法生成图片预览")
+        ?: error("Не удалось прочитать изображение")
+    val preview = decodeComposerImagePreview(bytes) ?: error("Не удалось создать предпросмотр изображения")
     val uploadUrl = buildConversationImageUploadUrl(bridgeUrl, sessionId)
-        ?: error("Bridge 地址无效")
+        ?: error("Недействительный адрес Bridge")
     val request = Request.Builder()
         .url(uploadUrl)
         .post(bytes.toRequestBody(mimeType.toMediaType()))
@@ -96,10 +96,10 @@ private fun MainActivity.readAndUploadComposerImage(
         val body = response.body?.string().orEmpty()
         if (!response.isSuccessful) {
             val code = runCatching { JSONObject(body).optString("error", "") }.getOrDefault("")
-            error(code.ifBlank { "Bridge 上传失败（${response.code}）" })
+            error(code.ifBlank { "Не удалось загрузить на Bridge (${response.code})" })
         }
         JSONObject(body).optString("path", "").trim().takeIf { it.isNotBlank() }
-            ?: error("Bridge 未返回图片路径")
+            ?: error("Bridge не вернул путь к изображению")
     }
     return ComposerImageAttachment(
         id = UUID.randomUUID().toString(),
@@ -118,10 +118,10 @@ private fun readComposerImageBytes(input: java.io.InputStream): ByteArray {
         val count = input.read(buffer)
         if (count < 0) break
         total += count
-        require(total <= MAX_COMPOSER_IMAGE_BYTES) { "图片超过 12 MB" }
+        require(total <= MAX_COMPOSER_IMAGE_BYTES) { "Изображение больше 12 MB" }
         output.write(buffer, 0, count)
     }
-    require(total > 0) { "图片内容为空" }
+    require(total > 0) { "Содержимое изображения пусто" }
     return output.toByteArray()
 }
 
@@ -148,7 +148,7 @@ private fun MainActivity.queryComposerImageDisplayName(uri: Uri): String {
     val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0) else null
     }
-    return name?.trim()?.takeIf { it.isNotBlank() } ?: "图片"
+    return name?.trim()?.takeIf { it.isNotBlank() } ?: "Изображение"
 }
 
 private fun buildConversationImageUploadUrl(bridgeUrl: String, sessionId: String): String? {

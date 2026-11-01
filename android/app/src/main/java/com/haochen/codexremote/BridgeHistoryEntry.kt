@@ -24,7 +24,7 @@ internal data class BridgeHistoryEntry(
     }
 
     fun lastUsedLabel(): String {
-        return formatBeijingDateTimeLabel(lastUsedAt, fallback = "刚刚", pattern = "yyyy-MM-dd HH:mm")
+        return formatBeijingDateTimeLabel(lastUsedAt, fallback = "Только что", pattern = "yyyy-MM-dd HH:mm")
     }
 
     companion object {

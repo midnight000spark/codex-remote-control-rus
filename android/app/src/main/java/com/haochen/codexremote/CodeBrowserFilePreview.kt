@@ -77,7 +77,7 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "当前仅加载前 ${formatCodeBrowserFileSize(content.bytes.toLong())}",
+                                text = "Сейчас загружены только первые ${formatCodeBrowserFileSize(content.bytes.toLong())}",
                                 color = uiMuted,
                                 fontSize = 11.sp,
                                 modifier = Modifier.weight(1f),
@@ -86,7 +86,7 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                                 onClick = { onSaveFile(content) },
                                 enabled = !codeBrowserFileActionInProgress && content.downloadable,
                             ) {
-                                Text("下载完整文件")
+                                Text("Скачать файл полностью")
                             }
                         }
                     }
@@ -97,13 +97,13 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         CodeBrowserModeButton(
-                            text = "源码",
+                            text = "Исходный код",
                             selected = documentViewMode == CodeBrowserDocumentViewMode.Source,
                             modifier = Modifier.weight(1f),
                             onClick = { documentViewMode = CodeBrowserDocumentViewMode.Source },
                         )
                         CodeBrowserModeButton(
-                            text = "预览",
+                            text = "Предпросмотр",
                             selected = documentViewMode == CodeBrowserDocumentViewMode.Preview,
                             enabled = !content.truncated,
                             modifier = Modifier.weight(1f),
@@ -142,7 +142,7 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                 }
                 if (source == null) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        BodyText("图片地址不可用")
+                        BodyText("Адрес изображения недоступен")
                     }
                 } else {
                     CodeBrowserImagePreview(
@@ -160,13 +160,13 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                             onClick = { onSaveFile(content) },
                             enabled = !codeBrowserFileActionInProgress && content.downloadable,
                         ) {
-                            Text("下载")
+                            Text("Скачать")
                         }
                         Button(
                             onClick = { openConversationImage(source) },
                             enabled = !codeBrowserFileActionInProgress,
                         ) {
-                            Text("全屏查看")
+                            Text("Открыть на весь экран")
                         }
                     }
                 }
@@ -176,7 +176,7 @@ internal fun MainActivity.CodeBrowserLoadedFilePane(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CodeBrowserFileCard(
                         content = content,
-                        headline = "暂不支持应用内预览",
+                        headline = "Предпросмотр в приложении пока не поддерживается",
                         onSaveFile = onSaveFile,
                     )
                 }
@@ -208,17 +208,17 @@ internal fun MainActivity.CodeBrowserBinaryDiffPane(
         }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
-                deleted -> CodeBrowserUnavailableFileCard("二进制文件已删除", "当前版本不可下载")
+                deleted -> CodeBrowserUnavailableFileCard("Двоичный файл удалён", "Текущую версию нельзя скачать")
                 state.fileReadState is CodeBrowserFileReadState.Loaded -> {
                     CodeBrowserFileCard(
                         content = state.fileReadState.content,
-                        headline = "二进制文件已修改，无法显示文本差异",
+                        headline = "Двоичный файл изменён, текстовую разницу показать нельзя",
                         onSaveFile = onSaveFile,
                     )
                 }
                 state.fileReadState is CodeBrowserFileReadState.Error -> {
                     CodeBrowserUnavailableFileCard(
-                        headline = "二进制文件无法显示文本差异",
+                        headline = "Для двоичного файла текстовая разница недоступна",
                         detail = state.fileReadState.message,
                     )
                 }
@@ -226,7 +226,7 @@ internal fun MainActivity.CodeBrowserBinaryDiffPane(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = uiPrimary)
                         Text(
-                            text = "正在读取文件信息…",
+                            text = "Читаю сведения о файле…",
                             color = uiMuted,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 12.dp),
@@ -312,13 +312,13 @@ private fun MainActivity.CodeBrowserFileCard(
                     },
                     enabled = !codeBrowserFileActionInProgress,
                 ) {
-                    Text(if (content.kind == CodeBrowserFileKind.Image) "查看" else "打开")
+                    Text(if (content.kind == CodeBrowserFileKind.Image) "Просмотр" else "Открыть")
                 }
                 OutlinedButton(
                     onClick = { onSaveFile(content) },
                     enabled = !codeBrowserFileActionInProgress && content.downloadable,
                 ) {
-                    Text("下载")
+                    Text("Скачать")
                 }
             }
         }

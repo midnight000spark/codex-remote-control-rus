@@ -47,7 +47,7 @@ internal fun MainActivity.openCodeBrowser(itemId: String, selectedPath: String?,
             }
 
         if (state == null || (state.diffEntries.isEmpty() && state.fallbackDiff.isNullOrBlank())) {
-            showNotice("这个条目暂时没有可浏览的代码内容")
+            showNotice("Для этого элемента пока нет кода для просмотра")
             return
         }
         chatRestoreScrollY = scrollY.coerceAtLeast(0)
@@ -57,12 +57,12 @@ internal fun MainActivity.openCodeBrowser(itemId: String, selectedPath: String?,
 internal fun MainActivity.openCodeBrowserFile(path: String, line: Int?, scrollY: Int) {
         val requestedPath = path.trim()
         if (requestedPath.isBlank()) {
-            showNotice("文件路径为空")
+            showNotice("Путь к файлу пуст")
             return
         }
         val sessionId = activeSessionId
         if (sessionId.isNullOrBlank()) {
-            showNotice("请先选择一个会话")
+            showNotice("Сначала выберите сессию")
             return
         }
 
@@ -114,17 +114,17 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
         val entry = state.selectedEntry()
         val sessionId = state.sessionId ?: activeSessionId
         if (sessionId.isNullOrBlank()) {
-            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("没有可读取的文件内容"))
+            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("Нет содержимого файла для чтения"))
             return
         }
         if (entry != null && entry.kind.trim() == "delete" && entry.movePath.isNullOrBlank()) {
-            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("该文件已经被删除，当前内容无法读取"))
+            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("Файл уже удалён, текущее содержимое прочитать нельзя"))
             return
         }
 
         val candidatePaths = state.selectedFileCandidates()
         if (candidatePaths.isEmpty()) {
-            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("没有可读取的文件路径"))
+            codeBrowserState = state.copy(fileReadState = CodeBrowserFileReadState.Error("Нет пути к файлу для чтения"))
             return
         }
         findCachedCodeBrowserFileContent(sessionId, candidatePaths)?.let { cached ->
@@ -143,7 +143,7 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
                 ) {
                     codeBrowserState = current.copy(
                         fileReadState = CodeBrowserFileReadState.Error(
-                            "文件读取超时\n候选路径: ${candidatePaths.joinToString(" | ") { compactDiffDisplayPath(it, state.basePath, maxLength = 64) }}",
+                            "Тайм-аут чтения файла\nВозможные пути: ${candidatePaths.joinToString(" | ") { compactDiffDisplayPath(it, state.basePath, maxLength = 64) }}",
                         ),
                     )
                 }
@@ -156,7 +156,7 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
             if (requestedPath.isNullOrBlank()) {
                 val current = codeBrowserState ?: return
                 if (current.conversationItemId == state.conversationItemId && current.selectedPath == browsePath) {
-                    codeBrowserState = current.copy(fileReadState = CodeBrowserFileReadState.Error("文件读取失败，候选路径都不可用"))
+                    codeBrowserState = current.copy(fileReadState = CodeBrowserFileReadState.Error("Не удалось прочитать файл, ни один из вариантов пути недоступен"))
                 }
                 return
             }
@@ -180,7 +180,7 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
                             resolvedPath = result.optString("resolved_path", requestedPath),
                             displayName = result.optString("name", "")
                                 .trim()
-                                .ifBlank { requestedPath.substringAfterLast('/').ifBlank { "文件" } },
+                                .ifBlank { requestedPath.substringAfterLast('/').ifBlank { "Файл" } },
                             mimeType = result.optString("mime_type", "application/octet-stream")
                                 .trim()
                                 .ifBlank { "application/octet-stream" },
@@ -209,8 +209,8 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
                     codeBrowserState = current.copy(
                         fileReadState = CodeBrowserFileReadState.Error(
                             buildString {
-                                append(if (errorText.isBlank()) "文件读取失败" else errorText)
-                                append("\n候选路径: ")
+                                append(if (errorText.isBlank()) "Не удалось прочитать файл" else errorText)
+                                append("\nВозможные пути: ")
                                 append(candidatePaths.joinToString(" | ") { compactDiffDisplayPath(it, state.basePath, maxLength = 64) })
                             },
                         ),
@@ -227,7 +227,7 @@ internal fun MainActivity.loadCodeBrowserFileContent(state: CodeBrowserState) {
                 }
                 val current = codeBrowserState ?: return
                 if (current.conversationItemId == state.conversationItemId && current.selectedPath == browsePath) {
-                    codeBrowserState = current.copy(fileReadState = CodeBrowserFileReadState.Error("文件读取请求发送失败"))
+                    codeBrowserState = current.copy(fileReadState = CodeBrowserFileReadState.Error("Не удалось отправить запрос на чтение файла"))
                 }
             }
         }
@@ -288,12 +288,12 @@ internal fun MainActivity.requestCodeBrowserFileSave(
     launchDestination: (Intent) -> Unit,
 ) {
     if (!content.downloadable) {
-        showNotice("这个文件当前不可下载")
+        showNotice("Этот файл сейчас нельзя скачать")
         return
     }
     val downloadUrl = codeBrowserFileSourceUrl(content)
     if (downloadUrl == null) {
-        showNotice("Bridge 地址无效，无法下载文件")
+        showNotice("Недействительный адрес Bridge, не удалось скачать файл")
         return
     }
     val displayName = sanitizeCodeBrowserFileName(content.displayName)
@@ -319,21 +319,21 @@ internal suspend fun MainActivity.completePendingCodeBrowserFileSave(destination
     pendingCodeBrowserFileSave = null
     if (codeBrowserFileActionInProgress) return
     codeBrowserFileActionInProgress = true
-    showNotice("正在下载文件…")
+    showNotice("Скачиваю файл…")
     try {
         withContext(Dispatchers.IO) {
             val request = Request.Builder().url(pending.downloadUrl).get().build()
             codeBrowserFileHttpClient.newCall(request).execute().use { response ->
-                require(response.isSuccessful) { "文件下载失败（${response.code}）" }
-                val body = response.body ?: error("文件内容为空")
+                require(response.isSuccessful) { "Не удалось скачать файл (${response.code})" }
+                val body = response.body ?: error("Содержимое файла пусто")
                 contentResolver.openOutputStream(destination, "w")?.use { output ->
                     body.byteStream().use { input -> input.copyTo(output) }
-                } ?: error("无法写入所选位置")
+                } ?: error("Не удалось записать в выбранное место")
             }
         }
-        showNotice("文件已保存")
+        showNotice("Файл сохранён")
     } catch (error: Exception) {
-        showNotice("保存文件失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось сохранить файл: ${error.message ?: "Неизвестная ошибка"}")
     } finally {
         codeBrowserFileActionInProgress = false
     }
@@ -343,11 +343,11 @@ internal suspend fun MainActivity.openCodeBrowserFileExternally(content: CodeBro
     if (codeBrowserFileActionInProgress) return
     val downloadUrl = codeBrowserFileSourceUrl(content)
     if (downloadUrl == null) {
-        showNotice("Bridge 地址无效，无法打开文件")
+        showNotice("Недействительный адрес Bridge, не удалось открыть файл")
         return
     }
     codeBrowserFileActionInProgress = true
-    showNotice("正在准备文件…")
+    showNotice("Готовлю файл…")
     try {
         val contentUri = withContext(Dispatchers.IO) {
             downloadCodeBrowserFileToCache(downloadUrl, content.displayName)
@@ -363,7 +363,7 @@ internal suspend fun MainActivity.openCodeBrowserFileExternally(content: CodeBro
                 Uri.parse("package:$packageName"),
             ).takeIf { it.resolveActivity(packageManager) != null }
                 ?: Intent(Settings.ACTION_SECURITY_SETTINGS)
-            showNotice("请开启“允许来自此来源的应用”")
+            showNotice("Включите «Разрешить приложения из этого источника»")
             startActivity(permissionIntent)
             return
         }
@@ -375,7 +375,7 @@ internal suspend fun MainActivity.openCodeBrowserFileExternally(content: CodeBro
         )
     } catch (error: Exception) {
         pendingCodeBrowserApkInstall = null
-        showNotice("打开文件失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось открыть файл: ${error.message ?: "Неизвестная ошибка"}")
     } finally {
         codeBrowserFileActionInProgress = false
     }
@@ -385,7 +385,7 @@ internal fun MainActivity.resumePendingCodeBrowserApkInstall() {
     val pending = pendingCodeBrowserApkInstall ?: return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
         pendingCodeBrowserApkInstall = null
-        showNotice("未授予安装未知应用权限")
+        showNotice("Нет разрешения на установку неизвестных приложений")
         return
     }
     pendingCodeBrowserApkInstall = null
@@ -397,7 +397,7 @@ internal fun MainActivity.resumePendingCodeBrowserApkInstall() {
             useChooser = false,
         )
     } catch (error: Exception) {
-        showNotice("打开 APK 失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось открыть APK: ${error.message ?: "Неизвестная ошибка"}")
     }
 }
 
@@ -412,9 +412,9 @@ private fun MainActivity.launchCachedCodeBrowserFile(
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     if (viewIntent.resolveActivity(packageManager) == null) {
-        error("没有可打开此类型文件的应用，可使用下载保存")
+        error("Нет приложения для открытия файлов этого типа; можно скачать и сохранить")
     }
-    startActivity(if (useChooser) Intent.createChooser(viewIntent, "打开 $displayName") else viewIntent)
+    startActivity(if (useChooser) Intent.createChooser(viewIntent, "Открыть $displayName") else viewIntent)
 }
 
 private fun MainActivity.downloadCodeBrowserFileToCache(
@@ -427,8 +427,8 @@ private fun MainActivity.downloadCodeBrowserFileToCache(
     val output = File(directory, "${System.currentTimeMillis()}-${sanitizeCodeBrowserFileName(displayName)}")
     val request = Request.Builder().url(downloadUrl).get().build()
     codeBrowserFileHttpClient.newCall(request).execute().use { response ->
-        require(response.isSuccessful) { "文件下载失败（${response.code}）" }
-        val body = response.body ?: error("文件内容为空")
+        require(response.isSuccessful) { "Не удалось скачать файл (${response.code})" }
+        val body = response.body ?: error("Содержимое файла пусто")
         output.outputStream().use { destination ->
             body.byteStream().use { input -> input.copyTo(destination) }
         }

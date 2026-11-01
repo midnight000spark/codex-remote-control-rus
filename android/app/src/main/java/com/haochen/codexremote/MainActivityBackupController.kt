@@ -54,17 +54,17 @@ internal fun MainActivity.exportSettingsBackup(uri: Uri) {
     try {
         contentResolver.openOutputStream(uri, "wt")?.use { stream ->
             stream.write(content.toByteArray(StandardCharsets.UTF_8))
-        } ?: throw IllegalStateException("无法打开备份文件")
-        showNotice("备份已导出")
+        } ?: throw IllegalStateException("Не удалось открыть файл резервной копии")
+        showNotice("Резервная копия экспортирована")
     } catch (error: Exception) {
-        showNotice("导出失败: ${error.message ?: "无法写入文件"}")
+        showNotice("Не удалось экспортировать: ${error.message ?: "Не удалось записать файл"}")
     }
 }
 
 internal fun MainActivity.prepareSettingsBackupImport(uri: Uri) {
     try {
         val document = contentResolver.openInputStream(uri)?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }
-            ?: throw IllegalStateException("无法读取备份文件")
+            ?: throw IllegalStateException("Не удалось прочитать файл резервной копии")
         val backup = parseSettingsBackupDocument(document)
         backupImportPreview = BackupImportPreview(
             document = backup.toString(),
@@ -75,7 +75,7 @@ internal fun MainActivity.prepareSettingsBackupImport(uri: Uri) {
         )
     } catch (error: Exception) {
         backupImportPreview = null
-        showNotice("导入失败: ${error.message ?: "备份文件无效"}")
+        showNotice("Не удалось импортировать: ${error.message ?: "Файл резервной копии недействителен"}")
     }
 }
 
@@ -84,9 +84,9 @@ internal fun MainActivity.confirmSettingsBackupImport(preview: BackupImportPrevi
         val backup = parseSettingsBackupDocument(preview.document)
         applySettingsBackupDocument(backup)
         backupImportPreview = null
-        showNotice("备份已导入")
+        showNotice("Резервная копия импортирована")
     } catch (error: Exception) {
-        showNotice("导入失败: ${error.message ?: "备份文件无效"}")
+        showNotice("Не удалось импортировать: ${error.message ?: "Файл резервной копии недействителен"}")
     }
 }
 
@@ -162,15 +162,15 @@ private fun parseSettingsBackupDocument(document: String): JSONObject {
     val root = try {
         JSONObject(document)
     } catch (_: JSONException) {
-        throw IllegalArgumentException("不是有效的 JSON 文件")
+        throw IllegalArgumentException("Это недействительный файл JSON")
     }
     if (root.optString("app") != BACKUP_APP) {
-        throw IllegalArgumentException("不是 CodexRemote 备份")
+        throw IllegalArgumentException("Это не резервная копия CodexRemote")
     }
     if (root.optInt("version", 0) != BACKUP_VERSION) {
-        throw IllegalArgumentException("不支持的备份版本")
+        throw IllegalArgumentException("Неподдерживаемая версия резервной копии")
     }
-    root.optJSONObject("settings") ?: throw IllegalArgumentException("备份缺少设置")
+    root.optJSONObject("settings") ?: throw IllegalArgumentException("В резервной копии отсутствуют настройки")
     return root
 }
 
@@ -281,7 +281,7 @@ private fun MainActivity.normalizeBackupConnections(
 private fun MainActivity.applyBackedUpStateFromPreferences() {
     cancelReconnectSchedule(resetAttempt = true)
     if (bridgeClient != null) {
-        disconnectBridge(detail = "已导入备份，连接已断开", switchToConnectionPage = false)
+        disconnectBridge(detail = "Резервная копия импортирована, соединение разорвано", switchToConnectionPage = false)
     }
     bridgeUrl = loadBridgeUrl()
     replaceConnectionHistory(loadConnectionHistory(bridgeUrl))
@@ -312,7 +312,7 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     notificationMode = loadNotificationMode()
     switchLocalSessionCache(findConnectionHistoryById(currentConnectionId))
     currentBridgeUrl = null
-    connectionDetail = if (bridgeUrl.isBlank()) "已导入备份，请配置 Bridge URL" else "已导入备份，点击连接即可"
+    connectionDetail = if (bridgeUrl.isBlank()) "Резервная копия импортирована, настройте Bridge URL" else "Резервная копия импортирована, нажмите «Подключиться»"
     currentPage = AppPage.Connection
 }
 

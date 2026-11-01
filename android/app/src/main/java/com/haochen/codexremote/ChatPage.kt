@@ -138,7 +138,7 @@ internal fun MainActivity.ChatPage() {
                     contentAlignment = Alignment.Center,
                 ) {
                     BodyText(
-                        text = if (activeSession == null) "先新建或选择一个项目里的会话，再开始聊天。" else "这里会显示当前会话的消息流。",
+                        text = if (activeSession == null) "Сначала создайте или выберите сессию в проекте, затем начинайте чат." else "Здесь будет показан поток сообщений текущей сессии.",
                         modifier = Modifier.fillMaxWidth(0.8f),
                     )
                 }
@@ -189,7 +189,7 @@ internal fun MainActivity.ChatPage() {
                         contentAlignment = Alignment.Center,
                     ) {
                         DownArrowGlyph(
-                            contentDescription = "跳到底部",
+                            contentDescription = "Перейти вниз",
                             modifier = Modifier.size(22.dp),
                         )
                     }
@@ -243,7 +243,7 @@ internal fun MainActivity.ChatPage() {
             ) {
                 Icon(
                     painter = painterResource(id = android.R.drawable.ic_menu_gallery),
-                    contentDescription = "添加图片",
+                    contentDescription = "Добавить изображение",
                     tint = if (canAttach) uiPrimary else uiOffline,
                 )
             }
@@ -257,7 +257,7 @@ internal fun MainActivity.ChatPage() {
                 minLines = 1,
                 maxLines = 5,
                 shape = RoundedCornerShape(18.dp),
-                placeholder = { Text(if (activeTurnId != null) "追加指令" else "输入消息") },
+                placeholder = { Text(if (activeTurnId != null) "Дополнительная команда" else "Введите сообщение") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = uiPrimary,
                     unfocusedBorderColor = uiBorder,
@@ -290,7 +290,7 @@ internal fun MainActivity.ChatPage() {
                 contentAlignment = Alignment.Center,
             ) {
                 SendGlyph(
-                    contentDescription = if (activeTurnId != null) "发送追加指令，长按中断" else "发送",
+                    contentDescription = if (activeTurnId != null) "Отправить дополнительную команду, долгое нажатие прерывает" else "Отправить",
                     modifier = Modifier.size(26.dp),
                 )
                 if (activeTurnId != null) {
@@ -420,7 +420,7 @@ internal fun MainActivity.ApprovalDialog(
                 if (approval.diffEntries.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "涉及文件: ${approval.diffEntries.size} 个",
+                            text = "Затронутые файлы: ${approval.diffEntries.size} шт.",
                             color = uiMuted,
                             fontSize = 13.sp,
                         )

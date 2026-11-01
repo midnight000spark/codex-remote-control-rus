@@ -57,7 +57,7 @@ internal fun MainActivity.SettingsPage() {
         if (granted && requestedMode != null) {
             updateNotificationMode(requestedMode)
         } else if (!granted) {
-            showNotice("未获得通知权限")
+            showNotice("Нет разрешения на уведомления")
         }
     }
     val enableNotificationMode: (NotificationMode) -> Unit = { mode ->
@@ -99,7 +99,7 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("对话")
+                SectionTitle("Диалог")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,
@@ -116,8 +116,8 @@ internal fun MainActivity.SettingsPage() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Label("显示消息时间")
-                            BodyText("在用户和助手消息下方显示发送时间。")
+                            Label("Показывать время сообщений")
+                            BodyText("Показывать время отправки под сообщениями пользователя и ассистента.")
                         }
                         Switch(
                             checked = showMessageTimestamps,
@@ -138,7 +138,7 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("自动重连")
+                SectionTitle("Автопереподключение")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,
@@ -155,8 +155,8 @@ internal fun MainActivity.SettingsPage() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Label("自动重连")
-                            BodyText("连接意外断开时，按设置自动重试连接。")
+                            Label("Автопереподключение")
+                            BodyText("При неожиданном обрыве соединение автоматически переподключается согласно настройкам.")
                         }
                         Switch(
                             checked = autoReconnectEnabled,
@@ -166,7 +166,7 @@ internal fun MainActivity.SettingsPage() {
                 }
 
                 SelectionMenuField(
-                    label = "最大重连次数",
+                    label = "Максимум попыток переподключения",
                     selectedLabel = autoReconnectMaxAttemptsLabel(),
                     expanded = reconnectAttemptsExpanded,
                     onExpandedChange = { reconnectAttemptsExpanded = it },
@@ -190,10 +190,10 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("通知")
+                SectionTitle("Уведомления")
                 NotificationSwitchRow(
-                    label = "任意消息通知",
-                    description = "收到完整回复、异常结束或需要审批时通知。",
+                    label = "Уведомления о любых сообщениях",
+                    description = "Уведомлять о полном ответе, аварийном завершении или необходимости подтверждения.",
                     checked = notificationMode == NotificationMode.AnyMessage,
                     onCheckedChange = { checked ->
                         if (checked) {
@@ -204,8 +204,8 @@ internal fun MainActivity.SettingsPage() {
                     },
                 )
                 NotificationSwitchRow(
-                    label = "仅完成通知",
-                    description = "仅在任务完成、中断或失败结束时通知。",
+                    label = "Только уведомление о завершении",
+                    description = "Уведомлять только по завершении, прерывании или сбое задачи.",
                     checked = notificationMode == NotificationMode.CompletionOnly,
                     onCheckedChange = { checked ->
                         if (checked) {
@@ -215,7 +215,7 @@ internal fun MainActivity.SettingsPage() {
                         }
                     },
                 )
-                BodyText("两个开关互斥。当前正在查看的会话会静默，其他会话仍会通知；仅在应用进程存活且 Bridge 保持连接时生效。")
+                BodyText("Два переключателя взаимоисключающие. Текущая открытая сессия будет без уведомлений, остальные сессии уведомления присылают; работает только пока процесс приложения жив и Bridge остаётся подключённым.")
             }
         }
 
@@ -229,7 +229,7 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("备份")
+                SectionTitle("Резервная копия")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,
@@ -241,8 +241,8 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Label("设置和连接信息")
-                        BodyText("导出 Bridge URL、token、连接历史和本页设置；不包含会话缓存、聊天内容或签名文件。")
+                        Label("Настройки и данные подключения")
+                        BodyText("Экспортирует Bridge URL, token, историю подключений и настройки этой страницы; не включает кэш сессий, содержимое чатов или файлы подписи.")
                     }
                 }
                 Row(
@@ -253,14 +253,14 @@ internal fun MainActivity.SettingsPage() {
                         onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "*/*")) },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("导入")
+                        Text("Импорт")
                     }
                     Button(
                         onClick = { exportLauncher.launch(defaultBackupFileName()) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                     ) {
-                        Text("导出")
+                        Text("Экспорт")
                     }
                 }
             }
@@ -276,9 +276,9 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("同步")
+                SectionTitle("Синхронизировать")
                 SelectionMenuField(
-                    label = "历史范围",
+                    label = "Диапазон истории",
                     selectedLabel = sessionHistoryMonthLabel(),
                     expanded = sessionHistoryMonthExpanded,
                     onExpandedChange = { sessionHistoryMonthExpanded = it },
@@ -304,8 +304,8 @@ internal fun MainActivity.SettingsPage() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Label("打开侧边栏自动刷新")
-                            BodyText("关闭后使用缓存，仍可点击侧边栏里的“刷新”手动更新。")
+                            Label("Автообновление при открытии боковой панели")
+                            BodyText("После выключения используется кэш; обновить вручную можно кнопкой «Обновить» в боковой панели.")
                         }
                         Switch(
                             checked = refreshSessionsOnDrawerOpen,
@@ -329,8 +329,8 @@ internal fun MainActivity.SettingsPage() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Label("增量同步")
-                            BodyText("开启后只同步有变化的回合；关闭后每次轮询拉取完整快照。")
+                            Label("Инкрементальная синхронизация")
+                            BodyText("При включении синхронизируются только изменившиеся ходы; при выключении каждый опрос загружает полный снимок.")
                         }
                         Switch(
                             checked = sessionIncrementalSyncEnabled,
@@ -339,7 +339,7 @@ internal fun MainActivity.SettingsPage() {
                     }
                 }
                 SelectionMenuField(
-                    label = "会话同步间隔",
+                    label = "Интервал синхронизации сессий",
                     selectedLabel = sessionSyncIntervalLabel(),
                     expanded = sessionSyncIntervalExpanded,
                     onExpandedChange = { sessionSyncIntervalExpanded = it },
@@ -362,9 +362,9 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("连接")
+                SectionTitle("Подключиться")
                 SelectionMenuField(
-                    label = "连接超时",
+                    label = "Время ожидания подключения истекло",
                     selectedLabel = bridgeConnectTimeoutLabel(),
                     expanded = bridgeConnectTimeoutExpanded,
                     onExpandedChange = { bridgeConnectTimeoutExpanded = it },
@@ -375,7 +375,7 @@ internal fun MainActivity.SettingsPage() {
                 )
                 BodyText(bridgeConnectTimeoutDescription())
                 SelectionMenuField(
-                    label = "心跳间隔",
+                    label = "Интервал пульса",
                     selectedLabel = bridgePingIntervalLabel(),
                     expanded = bridgePingIntervalExpanded,
                     onExpandedChange = { bridgePingIntervalExpanded = it },
@@ -398,12 +398,12 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("启动")
+                SectionTitle("Запуск")
                 SelectionMenuField(
-                    label = "默认页面",
+                    label = "Страница по умолчанию",
                     selectedLabel = startupPageOptions.firstOrNull {
                         it.value == startupPagePreference.preferenceValue()
-                    }?.label ?: "聊天",
+                    }?.label ?: "Чат",
                     expanded = startupPageExpanded,
                     onExpandedChange = { startupPageExpanded = it },
                     options = startupPageOptions,
@@ -411,7 +411,7 @@ internal fun MainActivity.SettingsPage() {
                         updateStartupPagePreference(appPageFromPreference(value))
                     },
                 )
-                BodyText("应用冷启动时默认先打开这个页面；连接成功后仍会按当前流程进入聊天页。")
+                BodyText("При холодном запуске приложение по умолчанию сначала открывает эту страницу; после успешного подключения оно всё равно переходит в чат по текущему сценарию.")
             }
         }
 
@@ -425,7 +425,7 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("缓存")
+                SectionTitle("Кэш")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,
@@ -437,15 +437,15 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Label("清除全部缓存")
-                        BodyText("删除所有本地会话缓存，包括旧版本残留。执行后会先清空界面；如果当前在线，会立即从 Bridge 重新拉取。")
+                        Label("Очистить весь кэш")
+                        BodyText("Удалить весь локальный кэш сессий, включая остатки старых версий. После этого интерфейс сначала очистится; если вы онлайн, данные сразу загрузятся заново из Bridge.")
                     }
                 }
                 OutlinedButton(
                     onClick = { clearAllCacheDialogVisible = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("清除全部缓存")
+                    Text("Очистить весь кэш")
                 }
             }
         }
@@ -460,7 +460,7 @@ internal fun MainActivity.SettingsPage() {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SectionTitle("关于")
+                SectionTitle("О программе")
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     color = uiSurfaceAlt,
@@ -472,7 +472,7 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Label("应用版本")
+                        Label("Версия приложения")
                         Text(
                             text = appVersionLabel(),
                             color = uiText,
@@ -492,9 +492,9 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Label("构建信息")
-                        AboutInfoRow("包名", appPackageLabel())
-                        AboutInfoRow("构建类型", appBuildTypeLabel())
+                        Label("Сведения о сборке")
+                        AboutInfoRow("Имя пакета", appPackageLabel())
+                        AboutInfoRow("Тип сборки", appBuildTypeLabel())
                     }
                 }
                 Surface(
@@ -508,7 +508,7 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Label("主要功能")
+                        Label("Основные функции")
                         appFeatureSummaries().forEach { feature ->
                             BodyText("• $feature")
                         }
@@ -525,15 +525,15 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Label("作者")
-                        AboutInfoRow("作者", "Hao Chen")
+                        Label("Автор")
+                        AboutInfoRow("Автор", "Hao Chen")
                         AboutInfoRow(
                             label = "GitHub",
                             value = projectGithubUrl(),
                             onClick = { openExternalUrl(projectGithubUrl()) },
                             isLink = true,
                         )
-                        BodyText("仅建议在可信私有网络中使用。")
+                        BodyText("Рекомендуется только в доверенной частной сети.")
                     }
                 }
                 Surface(
@@ -547,8 +547,8 @@ internal fun MainActivity.SettingsPage() {
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Label("联系与支持")
-                        BodyText("如果这个工具对你有帮助，可以支持后续维护与打磨。")
+                        Label("Связь и поддержка")
+                        BodyText("Если этот инструмент вам полезен, вы можете поддержать его дальнейшую поддержку и доработку.")
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -561,7 +561,7 @@ internal fun MainActivity.SettingsPage() {
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 Text(
-                                    text = "支付宝账户",
+                                    text = "Счёт Alipay",
                                     color = uiMuted,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -574,10 +574,10 @@ internal fun MainActivity.SettingsPage() {
                                 )
                             }
                             OutlinedButton(onClick = { copySupportAccountToClipboard() }) {
-                                Text("复制账号")
+                                Text("Копировать аккаунт")
                             }
                         }
-                        BodyText("转账时可备注 ID 或项目名，感谢支持。")
+                        BodyText("При переводе можно указать ID или название проекта. Спасибо за поддержку.")
                     }
                 }
             }
@@ -589,18 +589,18 @@ internal fun MainActivity.SettingsPage() {
     if (clearAllCacheDialogVisible) {
         AppCenteredDialog(onDismiss = { clearAllCacheDialogVisible = false }) {
             Text(
-                text = "清除全部缓存",
+                text = "Очистить весь кэш",
                 color = uiText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
             )
-            BodyText("会删除当前版本和旧版本残留的本地缓存。界面会立即清空；如果当前在线，会随后从 Bridge 重新加载。")
+            BodyText("Будет удалён локальный кэш текущей версии и остатки старых версий. Интерфейс сразу очистится; если вы онлайн, затем данные перезагрузятся из Bridge.")
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
             ) {
                 OutlinedButton(onClick = { clearAllCacheDialogVisible = false }) {
-                    Text("取消")
+                    Text("Отмена")
                 }
                 Button(
                     onClick = {
@@ -609,7 +609,7 @@ internal fun MainActivity.SettingsPage() {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                 ) {
-                    Text("确认清除")
+                    Text("Подтвердить очистку")
                 }
             }
         }
@@ -618,27 +618,27 @@ internal fun MainActivity.SettingsPage() {
     backupImportPreview?.let { preview ->
         AppCenteredDialog(onDismiss = { cancelSettingsBackupImport() }) {
             Text(
-                text = "导入备份",
+                text = "Импорт резервной копии",
                 color = uiText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             BodyText(
-                "将覆盖当前连接信息和本页设置。备份包含 ${preview.connectionCount} 条连接记录" +
-                    if (preview.hasCurrentConnection) "，并包含当前连接。" else "。",
+                "Перезапишет текущие данные подключения и настройки страницы. Резервная копия содержит ${preview.connectionCount} записей подключений" +
+                    if (preview.hasCurrentConnection) ", включая текущее подключение." else ".",
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
             ) {
                 OutlinedButton(onClick = { cancelSettingsBackupImport() }) {
-                    Text("取消")
+                    Text("Отмена")
                 }
                 Button(
                     onClick = { confirmSettingsBackupImport(preview) },
                     colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                 ) {
-                    Text("确认导入")
+                    Text("Подтвердить импорт")
                 }
             }
         }

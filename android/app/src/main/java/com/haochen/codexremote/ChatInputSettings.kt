@@ -178,7 +178,7 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
     }
 
     SheetColumn(scrollState = scrollState, maxHeight = 640.dp) {
-        SheetTitle("协作模式")
+        SheetTitle("Режим сотрудничества")
         chatModeOptions().forEach { option ->
             SelectableOptionRow(
                 label = option.label,
@@ -193,9 +193,9 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
 
         HorizontalDivider(color = uiBorder.copy(alpha = 0.8f))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("当前目标", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("Текущая цель", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                text = activeThreadGoal?.objective?.takeIf { it.isNotBlank() } ?: "未设置目标",
+                text = activeThreadGoal?.objective?.takeIf { it.isNotBlank() } ?: "Цель не задана",
                 color = uiMuted,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -209,8 +209,8 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
                 minLines = 2,
                 maxLines = 4,
                 shape = RoundedCornerShape(18.dp),
-                label = { Text("目标") },
-                placeholder = { Text("例如：完成 Android 端模式支持") },
+                label = { Text("Цель") },
+                placeholder = { Text("Например: реализовать поддержку режимов на Android") },
                 colors = inputFieldColors(),
             )
             OutlinedTextField(
@@ -221,8 +221,8 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
                     .onFocusChanged { if (it.isFocused) revealInputs() },
                 singleLine = true,
                 shape = RoundedCornerShape(18.dp),
-                label = { Text("Token 预算") },
-                placeholder = { Text("可选") },
+                label = { Text("Бюджет Token") },
+                placeholder = { Text("Необязательно") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = inputFieldColors(),
             )
@@ -235,7 +235,7 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
                     enabled = activeThreadGoal != null,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("清除目标")
+                    Text("Очистить цель")
                 }
                 Button(
                     onClick = { setActiveGoal(goalDraft, budgetDraft) },
@@ -243,7 +243,7 @@ private fun MainActivity.ChatModeSheet(onDismiss: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                 ) {
-                    Text("设为当前目标")
+                    Text("Сделать текущей целью")
                 }
             }
         }
@@ -274,8 +274,8 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
     val currentEffort = selectedReasoningEffort
 
     SheetColumn {
-        SheetTitle("模型与推理")
-        Text("思考强度", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        SheetTitle("Модель и рассуждения")
+        Text("Интенсивность рассуждений", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         SegmentedButtonRows(
             options = chatReasoningEffortOptions(currentModel),
             columns = 5,
@@ -284,7 +284,7 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
             onClick = { option -> selectReasoningEffort(option.value) },
         )
 
-        Text("推理摘要", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("Сводка рассуждений", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         SegmentedButtonRows(
             options = reasoningSummaryOptions(),
             columns = 4,
@@ -294,15 +294,15 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
         )
 
         HorizontalDivider(color = uiBorder.copy(alpha = 0.8f))
-        Text("模型", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("Модель", color = uiText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         if (modelOptions.isEmpty()) {
-            Text("暂无可用模型", color = uiMuted, fontSize = 12.sp)
+            Text("Нет доступных моделей", color = uiMuted, fontSize = 12.sp)
         } else {
             modelOptions.forEach { model ->
                 SelectableOptionRow(
                     label = model.displayName,
                     supporting = model.description.takeIf { it.isNotBlank() }
-                        ?: if (model.isDefault) "默认" else model.model,
+                        ?: if (model.isDefault) "По умолчанию" else model.model,
                     selected = model.model == currentModel || model.id == currentModel,
                     onClick = { selectModel(model.model) },
                 )
@@ -310,7 +310,7 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = uiPrimary)) {
-                Text("完成")
+                Text("Завершено")
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -320,7 +320,7 @@ private fun MainActivity.ModelReasoningSheet(onDismiss: () -> Unit) {
 @Composable
 private fun MainActivity.SandboxSheet(onDismiss: () -> Unit) {
     SheetColumn {
-        SheetTitle("沙盒模式")
+        SheetTitle("Режим песочницы")
         sandboxMenuOptions().forEach { option ->
             SelectableOptionRow(
                 label = option.label,

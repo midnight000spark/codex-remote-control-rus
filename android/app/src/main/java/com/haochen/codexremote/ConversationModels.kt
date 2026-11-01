@@ -127,9 +127,9 @@ internal fun buildDiffStatsLabel(
 ): String? {
     val stats = parseDiffStats(diffText, kind)
     return stats?.toLabel() ?: when (kind.trim()) {
-        "add" -> "新增"
-        "delete" -> "删除"
-        "update" -> "修改"
+        "add" -> "Добавлено"
+        "delete" -> "Удалить"
+        "update" -> "Изменение"
         else -> null
     }
 }
@@ -147,7 +147,7 @@ internal fun buildDiffChangeLabel(
             listOfNotNull(kindLabel, statsLabel?.takeUnless { it == kindLabel }).joinToString(" ").takeIf { it.isNotBlank() }
 
         normalizedKind == "update" && !movePath.isNullOrBlank() ->
-            listOfNotNull(kindLabel, statsLabel?.takeUnless { it == kindLabel || it == "修改" }).joinToString(" ").takeIf { it.isNotBlank() }
+            listOfNotNull(kindLabel, statsLabel?.takeUnless { it == kindLabel || it == "Изменение" }).joinToString(" ").takeIf { it.isNotBlank() }
 
         else -> statsLabel ?: kindLabel
     }
@@ -155,10 +155,10 @@ internal fun buildDiffChangeLabel(
 
 internal fun buildDiffKindLabel(kind: String, movePath: String?): String {
     return when (kind.trim()) {
-        "add" -> "新增"
-        "delete" -> "删除"
-        "update" -> if (movePath.isNullOrBlank()) "修改" else "重命名"
-        else -> kind.ifBlank { "变更" }
+        "add" -> "Добавлено"
+        "delete" -> "Удалить"
+        "update" -> if (movePath.isNullOrBlank()) "Изменение" else "Переименовать"
+        else -> kind.ifBlank { "Изменения" }
     }
 }
 
@@ -171,7 +171,7 @@ internal data class DiffStats(
             additions > 0 && deletions > 0 -> "+$additions / -$deletions"
             additions > 0 -> "+$additions"
             deletions > 0 -> "-$deletions"
-            else -> "修改"
+            else -> "Изменение"
         }
     }
 }

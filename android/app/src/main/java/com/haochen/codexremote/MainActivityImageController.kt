@@ -80,17 +80,17 @@ internal fun MainActivity.openConversationLink(
             },
         )
     } catch (error: Exception) {
-        showNotice("无法打开链接：${error.message ?: "未知错误"}")
+        showNotice("Не удалось открыть ссылку: ${error.message ?: "Неизвестная ошибка"}")
     }
 }
 
 internal fun MainActivity.copyConversationLink(source: String) {
     val copyValue = conversationLinkCopyValue(source)
     if (copyValue.isBlank()) return
-    if (copyTextToClipboard("链接", copyValue)) {
-        showNotice("链接已复制")
+    if (copyTextToClipboard("Ссылка", copyValue)) {
+        showNotice("Ссылка скопирована")
     } else {
-        showNotice("复制链接失败")
+        showNotice("Не удалось скопировать ссылку")
     }
 }
 
@@ -99,11 +99,11 @@ internal suspend fun MainActivity.copyConversationImage(source: String) {
         val image = downloadConversationImage(source)
         val contentUri = withContext(Dispatchers.IO) { writeConversationImageToCache(image) }
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            ?: error("无法访问剪贴板")
-        clipboard.setPrimaryClip(ClipData.newUri(contentResolver, "图片", contentUri))
-        showNotice("图片已复制")
+            ?: error("Нет доступа к буферу обмена")
+        clipboard.setPrimaryClip(ClipData.newUri(contentResolver, "Изображение", contentUri))
+        showNotice("Изображение скопировано")
     } catch (error: Exception) {
-        showNotice("复制图片失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось скопировать изображение: ${error.message ?: "Неизвестная ошибка"}")
     }
 }
 
@@ -112,13 +112,13 @@ internal suspend fun MainActivity.requestConversationImageSave(
     launchDestination: (String) -> Unit,
 ) {
     try {
-        showNotice("正在准备图片…")
+        showNotice("Готовлю изображение…")
         val image = downloadConversationImage(source)
         pendingConversationImageSave = image
         launchDestination(image.displayName)
     } catch (error: Exception) {
         pendingConversationImageSave = null
-        showNotice("保存图片失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось сохранить изображение: ${error.message ?: "Неизвестная ошибка"}")
     }
 }
 
@@ -129,11 +129,11 @@ internal suspend fun MainActivity.completePendingConversationImageSave(destinati
         withContext(Dispatchers.IO) {
             contentResolver.openOutputStream(destination, "w")?.use { output ->
                 output.write(image.bytes)
-            } ?: error("无法写入所选位置")
+            } ?: error("Не удалось записать в выбранное место")
         }
-        showNotice("图片已保存")
+        showNotice("Изображение сохранено")
     } catch (error: Exception) {
-        showNotice("保存图片失败：${error.message ?: "未知错误"}")
+        showNotice("Не удалось сохранить изображение: ${error.message ?: "Неизвестная ошибка"}")
     }
 }
 
@@ -148,14 +148,14 @@ private suspend fun downloadConversationImage(source: String): DownloadedConvers
 
 private fun decodeInlineConversationImage(source: String): DownloadedConversationImage {
     val separatorIndex = source.indexOf(',')
-    require(separatorIndex > 5) { "图片数据格式无效" }
+    require(separatorIndex > 5) { "Недействительный формат данных изображения" }
     val header = source.substring(5, separatorIndex)
-    require(header.contains(";base64", ignoreCase = true)) { "暂不支持此图片数据格式" }
+    require(header.contains(";base64", ignoreCase = true)) { "Этот формат данных изображения пока не поддерживается" }
     val mimeType = normalizeConversationImageMimeType(header.substringBefore(';'))
-        ?: error("图片类型无效")
+        ?: error("Недействительный тип изображения")
     val bytes = Base64.decode(source.substring(separatorIndex + 1), Base64.DEFAULT)
-    require(bytes.isNotEmpty()) { "图片内容为空" }
-    require(bytes.size <= MAX_CONVERSATION_IMAGE_BYTES) { "图片超过 12 MB" }
+    require(bytes.isNotEmpty()) { "Содержимое изображения пусто" }
+    require(bytes.size <= MAX_CONVERSATION_IMAGE_BYTES) { "Изображение больше 12 MB" }
     return DownloadedConversationImage(
         bytes = bytes,
         mimeType = mimeType,
@@ -165,20 +165,20 @@ private fun decodeInlineConversationImage(source: String): DownloadedConversatio
 
 private fun downloadRemoteConversationImage(source: String): DownloadedConversationImage {
     require(source.startsWith("http://", ignoreCase = true) || source.startsWith("https://", ignoreCase = true)) {
-        "图片地址无效"
+        "Недействительный адрес изображения"
     }
     val request = Request.Builder().url(source).get().build()
     return conversationImageHttpClient.newCall(request).execute().use { response ->
-        require(response.isSuccessful) { "图片下载失败（${response.code}）" }
-        val body = response.body ?: error("图片内容为空")
+        require(response.isSuccessful) { "Не удалось скачать изображение (${response.code})" }
+        val body = response.body ?: error("Содержимое изображения пусто")
         val contentLength = body.contentLength()
-        require(contentLength < 0 || contentLength <= MAX_CONVERSATION_IMAGE_BYTES) { "图片超过 12 MB" }
+        require(contentLength < 0 || contentLength <= MAX_CONVERSATION_IMAGE_BYTES) { "Изображение больше 12 MB" }
         val bytes = body.bytes()
-        require(bytes.isNotEmpty()) { "图片内容为空" }
-        require(bytes.size <= MAX_CONVERSATION_IMAGE_BYTES) { "图片超过 12 MB" }
+        require(bytes.isNotEmpty()) { "Содержимое изображения пусто" }
+        require(bytes.size <= MAX_CONVERSATION_IMAGE_BYTES) { "Изображение больше 12 MB" }
         val mimeType = normalizeConversationImageMimeType(body.contentType()?.toString())
             ?: detectConversationImageMimeType(bytes)
-            ?: error("下载内容不是受支持的图片")
+            ?: error("Загруженное содержимое не является поддерживаемым изображением")
         DownloadedConversationImage(
             bytes = bytes,
             mimeType = mimeType,

@@ -119,13 +119,13 @@ internal fun MainActivity.EditConnectionDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
-                    text = "编辑历史连接",
+                    text = "Изменить историческое подключение",
                     color = uiText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "IP 变化时只改地址，连接身份和本地会话缓存会保留下来。",
+                    text = "При смене IP меняется только адрес, идентичность подключения и локальный кэш сессий сохраняются.",
                     color = uiMuted,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -136,8 +136,8 @@ internal fun MainActivity.EditConnectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
-                    label = { Text("名称") },
-                    placeholder = { Text("例如：家里 Mac mini") },
+                    label = { Text("Название") },
+                    placeholder = { Text("Например: домашний Mac mini") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = uiPrimary,
                         unfocusedBorderColor = uiBorder,
@@ -171,13 +171,13 @@ internal fun MainActivity.EditConnectionDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
                 ) {
                     OutlinedButton(onClick = onDismiss) {
-                        Text("取消")
+                        Text("Отмена")
                     }
                     Button(
                         onClick = { onConfirm(nameDraft.trim(), urlDraft.trim()) },
                         colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                     ) {
-                        Text("保存")
+                        Text("Сохранить")
                     }
                 }
             }
@@ -194,12 +194,12 @@ internal fun MainActivity.RemoveConnectionDialog(
 ) {
     AppCenteredDialog(onDismiss = onDismiss) {
         Text(
-            text = "移除历史连接",
+            text = "Удалить историческое подключение",
             color = uiText,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        BodyText("这是这个 bridge 的最后一个 URL。你可以只移除连接记录，或同时删除这组本地缓存。")
+        BodyText("Это последний URL для этого bridge. Можно удалить только запись подключения или вместе с этим набором локального кэша.")
         Surface(
             shape = RoundedCornerShape(18.dp),
             color = uiSurfaceAlt,
@@ -227,13 +227,13 @@ internal fun MainActivity.RemoveConnectionDialog(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("取消")
+                    Text("Отмена")
                 }
                 OutlinedButton(
                     onClick = onKeepCache,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("仅移除连接")
+                    Text("Только удалить подключение")
                 }
             }
             Button(
@@ -241,7 +241,7 @@ internal fun MainActivity.RemoveConnectionDialog(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
             ) {
-                Text("移除并删缓存")
+                Text("Удалить и очистить кэш")
             }
         }
     }
@@ -283,11 +283,11 @@ internal fun MainActivity.ConnectionPage() {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        SectionTitle("连接 Linux Bridge")
+                        SectionTitle("Подключиться к Linux Bridge")
                         ConnectionStatusBadge(active = connected)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    BodyText("直接粘贴 `npm run bridge` 打印出来的完整 ws:// 地址，最好带上端口和 token。")
+                    BodyText("Вставьте полный адрес ws://, который выводит `npm run bridge`, желательно с портом и token.")
                 }
             }
 
@@ -335,7 +335,7 @@ internal fun MainActivity.ConnectionPage() {
                             },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("粘贴")
+                            Text("Вставить")
                         }
                         Button(
                             onClick = {
@@ -346,7 +346,7 @@ internal fun MainActivity.ConnectionPage() {
                             modifier = Modifier.weight(1.4f),
                             colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                         ) {
-                            Text(if (connected) "断开连接" else "连接")
+                            Text(if (connected) "Отключиться" else "Подключиться")
                         }
                     }
 
@@ -391,9 +391,9 @@ internal fun MainActivity.ConnectionPage() {
                     border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        SectionTitle("历史连接")
+                        SectionTitle("История подключений")
                         Spacer(modifier = Modifier.height(8.dp))
-                        BodyText("单击回填地址，长按可编辑地址或移除，也可以直接连接或切换。")
+                        BodyText("Нажатие подставляет адрес, долгое нажатие позволяет изменить или удалить адрес, а также сразу подключиться или переключиться.")
                         Spacer(modifier = Modifier.height(12.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             connectionHistory.forEach { entry ->
@@ -421,20 +421,20 @@ internal fun MainActivity.ConnectionPage() {
                 val updated = try {
                     updateConnectionHistory(state.connectionId, name, url)
                 } catch (error: Exception) {
-                    connectionDetail = "连接地址无效: ${error.message}"
+                    connectionDetail = "Недействительный адрес подключения: ${error.message}"
                     showNotice(connectionDetail)
                     return@EditConnectionDialog
                 }
                 if (updated == null) {
-                    connectionDetail = "历史连接不存在"
+                    connectionDetail = "Историческое подключение не существует"
                     showNotice(connectionDetail)
                     connectionEditState = null
                     return@EditConnectionDialog
                 }
                 if (currentConnectionId == updated.id && connected) {
-                    connectionDetail = "已连接到 ${updated.displayName()}"
+                    connectionDetail = "Подключено к ${updated.displayName()}"
                 } else if (currentConnectionId == updated.id || bridgeUrl.trim() == updated.url.trim()) {
-                    connectionDetail = "已回填 ${updated.displayName()}，点击连接即可"
+                    connectionDetail = "Заполнено ${updated.displayName()}, достаточно нажать «Подключиться»"
                 }
                 connectionEditState = null
             },
@@ -464,9 +464,9 @@ internal fun MainActivity.HistoryConnectionCard(
     val isConnectedState = active && connected
     val isConnectingState = active && !connected
     val connectLabel = when {
-        isConnectedState -> "当前"
-        connected -> "切换"
-        else -> "连接"
+        isConnectedState -> "Текущий"
+        connected -> "Переключить"
+        else -> "Подключиться"
     }
     var actionsExpanded by remember(entry.id) { mutableStateOf(false) }
 
@@ -532,7 +532,7 @@ internal fun MainActivity.HistoryConnectionCard(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = "已连接",
+                            text = "Подключено",
                             color = uiText,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -550,7 +550,7 @@ internal fun MainActivity.HistoryConnectionCard(
                                     strokeWidth = 2.dp,
                                     modifier = Modifier.size(14.dp),
                                 )
-                                Text(if (reconnectScheduled || reconnectAttempt > 0) "重连中" else "连接中")
+                                Text(if (reconnectScheduled || reconnectAttempt > 0) "Переподключение" else "Подключение")
                             }
                         } else {
                             Text(connectLabel)
@@ -568,14 +568,14 @@ internal fun MainActivity.HistoryConnectionCard(
                 border = androidx.compose.foundation.BorderStroke(1.dp, uiBorder),
             ) {
                 DropdownMenuItem(
-                    text = { Text("编辑") },
+                    text = { Text("Изменить") },
                     onClick = {
                         actionsExpanded = false
                         onEdit()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("移除") },
+                    text = { Text("Удалить") },
                     onClick = {
                         actionsExpanded = false
                         onDelete()

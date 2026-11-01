@@ -32,7 +32,7 @@ internal fun encodeToken(token: String): String = URLEncoder.encode(token, "UTF-
 
 internal fun formatBeijingDateTimeLabel(
     epochMillis: Long,
-    fallback: String = "刚刚",
+    fallback: String = "Только что",
     pattern: String = "MM-dd HH:mm",
 ): String {
     if (epochMillis <= 0L) return fallback

@@ -60,17 +60,17 @@ public final class BridgeClient {
             @Override
             public void onClosing(WebSocket socket, int code, String reason) {
                 socket.close(code, reason);
-                finish(code, reason == null || reason.isEmpty() ? "连接已断开" : reason, null);
+                finish(code, reason == null || reason.isEmpty() ? "Соединение разорвано" : reason, null);
             }
 
             @Override
             public void onClosed(WebSocket socket, int code, String reason) {
-                finish(code, reason == null || reason.isEmpty() ? "连接已断开" : reason, null);
+                finish(code, reason == null || reason.isEmpty() ? "Соединение разорвано" : reason, null);
             }
 
             @Override
             public void onFailure(WebSocket socket, Throwable error, Response response) {
-                finish(-1, "连接失败", error);
+                finish(-1, "Не удалось подключиться", error);
             }
         });
     }

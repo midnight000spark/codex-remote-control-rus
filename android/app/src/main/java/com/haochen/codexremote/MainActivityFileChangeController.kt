@@ -78,7 +78,7 @@ internal fun MainActivity.upsertFileChangeConversationItem(
         if (existingId == null) {
             val created = ConversationItem.FileChange(
                 id = buildConversationItemId("file_change", itemId, turnKey),
-                title = "文件修改",
+                title = "Изменение файла",
                 summary = summary,
                 status = status,
                 diffEntries = diffEntries,
@@ -94,7 +94,7 @@ internal fun MainActivity.upsertFileChangeConversationItem(
         replaceConversationItem(existingId) { current ->
             if (current is ConversationItem.FileChange) {
                 current.copy(
-                    title = "文件修改",
+                    title = "Изменение файла",
                     summary = summary,
                     status = status,
                     diffEntries = diffEntries,
@@ -114,7 +114,7 @@ internal fun MainActivity.upsertTurnDiffConversationItem(turnKey: String, diff: 
         if (existingId == null) {
             val created = ConversationItem.FileChange(
                 id = buildConversationItemId("turn_diff", turnKey),
-                title = "文件修改中",
+                title = "Изменение файлов",
                 summary = summary,
                 status = "inProgress",
                 diffEntries = emptyList(),
@@ -129,7 +129,7 @@ internal fun MainActivity.upsertTurnDiffConversationItem(turnKey: String, diff: 
         replaceConversationItem(existingId) { current ->
             if (current is ConversationItem.FileChange) {
                 current.copy(
-                    title = "文件修改中",
+                    title = "Изменение файлов",
                     summary = summary,
                     status = "inProgress",
                     fallbackDiff = diff,
@@ -150,13 +150,13 @@ internal fun MainActivity.buildFileChangeSummary(
         labelPatchStatus(status).takeIf { it.isNotBlank() }?.let(lines::add)
 
         if (diffEntries.isNotEmpty()) {
-            lines.add("${diffEntries.size} 个文件")
+            lines.add("${diffEntries.size} файлов")
             buildDiffStatsLine(diffEntries = diffEntries, fallbackDiff = fallbackDiff)?.let(lines::add)
         } else if (!fallbackDiff.isNullOrBlank()) {
             buildDiffStatsLine(diffEntries = emptyList(), fallbackDiff = fallbackDiff)?.let(lines::add)
         }
 
-        return if (lines.isEmpty()) "点击查看详情" else lines.joinToString("\n")
+        return if (lines.isEmpty()) "Нажмите, чтобы увидеть подробности" else lines.joinToString("\n")
     }
 
 internal fun MainActivity.buildDiffStatsLine(
@@ -177,10 +177,10 @@ internal fun MainActivity.buildDiffStatsLine(
 
 internal fun MainActivity.labelPatchStatus(status: String): String {
         return when (status.trim()) {
-            "inProgress" -> "进行中"
-            "completed" -> "已完成"
-            "failed" -> "失败"
-            "declined" -> "已拒绝"
+            "inProgress" -> "Выполняется"
+            "completed" -> "Завершено"
+            "failed" -> "Не удалось"
+            "declined" -> "Отклонено"
             else -> status.trim()
         }
     }

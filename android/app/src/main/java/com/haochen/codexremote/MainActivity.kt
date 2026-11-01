@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
     internal var selectedSandbox by mutableStateOf("workspaceWrite")
     internal var chatSettingsSheet by mutableStateOf<ChatSettingsSheet?>(null)
     internal var activeThreadGoal by mutableStateOf<ThreadGoalState?>(null)
-    internal var connectionDetail by mutableStateOf("未连接")
+    internal var connectionDetail by mutableStateOf("Не подключено")
     internal var currentBridgeUrl by mutableStateOf<String?>(null)
     internal var currentConnectionId by mutableStateOf<String?>(null)
     internal var activeSessionCacheKey: String? = null
@@ -193,7 +193,7 @@ class MainActivity : ComponentActivity() {
 
     internal val bridgeHelloTimeoutRunnable = Runnable {
         if (connected || bridgeClient == null) return@Runnable
-        val detail = "Bridge 握手超时（${bridgeConnectTimeoutSeconds.coerceAtLeast(1)} 秒）"
+        val detail = "Тайм-аут рукопожатия Bridge (${bridgeConnectTimeoutSeconds.coerceAtLeast(1)} с)"
         disconnectBridge(detail = detail, switchToConnectionPage = true)
         showNotice(detail)
     }

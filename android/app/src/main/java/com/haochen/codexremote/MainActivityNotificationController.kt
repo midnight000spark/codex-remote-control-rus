@@ -38,10 +38,10 @@ internal fun MainActivity.hasNotificationPermission(): Boolean {
 internal fun MainActivity.createNotificationChannel() {
     val channel = NotificationChannel(
         NOTIFICATION_CHANNEL_ID,
-        "Codex 消息",
+        "Сообщение Codex",
         NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
-        description = "Codex 回复、审批和任务完成提醒"
+        description = "Уведомления об ответах Codex, подтверждениях и завершении задач"
     }
     getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 }
@@ -85,7 +85,7 @@ private fun MainActivity.maybeNotifyAssistantMessage(sessionId: String, item: JS
         .replace('\n', ' ')
         .trim()
         .take(240)
-        .ifBlank { "收到新的 Codex 回复" }
+        .ifBlank { "Получен новый ответ Codex" }
     postCodexNotification(
         sessionId = sessionId,
         title = notificationSessionTitle(sessionId),
@@ -105,10 +105,10 @@ private fun MainActivity.maybeNotifyTurnCompleted(sessionId: String, payload: JS
         ?: payload.optJSONObject("turn")?.optJSONObject("error")
     val backendConnectionFailure = isBackendConnectionFailure(error)
     val title = when {
-        backendConnectionFailure -> "Codex 连接失败"
-        status == "failed" -> "任务失败"
-        status in TURN_FAILURE_STATUSES -> "任务已中断"
-        else -> "任务已完成"
+        backendConnectionFailure -> "Не удалось подключиться к Codex"
+        status == "failed" -> "Сбой задачи"
+        status in TURN_FAILURE_STATUSES -> "Задача прервана"
+        else -> "Задача завершена"
     }
     postCodexNotification(
         sessionId = sessionId,

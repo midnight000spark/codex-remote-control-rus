@@ -25,15 +25,15 @@ internal fun MainActivity.openExternalUrl(url: String) {
         }
         startActivity(intent)
     }.onFailure {
-        showNotice("无法打开链接")
+        showNotice("Не удалось открыть ссылку")
     }
 }
 
 internal fun MainActivity.copySupportAccountToClipboard() {
-    if (copyTextToClipboard("支付宝账户", supportAlipayAccount())) {
-        showNotice("账号已复制")
+    if (copyTextToClipboard("Счёт Alipay", supportAlipayAccount())) {
+        showNotice("Аккаунт скопирован")
     } else {
-        showNotice("复制失败")
+        showNotice("Не удалось скопировать")
     }
 }
 
@@ -78,18 +78,18 @@ internal fun MainActivity.sessionHistoryMonthMenuOptions(): List<SelectionMenuOp
     return listOf(1, 3, 6, 12, 0).map { months ->
         SelectionMenuOption(
             value = months.toString(),
-            label = if (months == 0) "全部历史" else "最近 $months 个月",
-            supporting = if (months == 0) "拉取所有会话的摘要。" else "只拉取最近更新过的会话摘要。",
+            label = if (months == 0) "Вся история" else "Последние $months мес.",
+            supporting = if (months == 0) "Загружать сводки всех сессий." else "Загружать только сводки недавно обновлённых сессий.",
         )
     }
 }
 
 internal fun MainActivity.sessionHistoryMonthLabel(): String {
-    return if (sessionHistoryMonths == 0) "全部历史" else "最近 $sessionHistoryMonths 个月"
+    return if (sessionHistoryMonths == 0) "Вся история" else "Последние $sessionHistoryMonths мес."
 }
 
 internal fun MainActivity.sessionHistoryMonthDescription(): String {
-    return "只限制侧边栏会话列表，不会删除 Bridge 上的旧对话。"
+    return "Ограничивает только список сессий в боковой панели и не удаляет старые диалоги на Bridge."
 }
 
 internal fun MainActivity.loadRefreshSessionsOnDrawerOpen(): Boolean {
@@ -123,18 +123,18 @@ internal fun MainActivity.sessionSyncIntervalMenuOptions(): List<SelectionMenuOp
     return listOf(5, 15, 30, 60).map { seconds ->
         SelectionMenuOption(
             value = seconds.toString(),
-            label = "${seconds} 秒",
-            supporting = if (seconds == 5) "默认频率，响应更及时。" else "降低请求频率，适合稳定查看历史内容。",
+            label = "${seconds} с",
+            supporting = if (seconds == 5) "Частота по умолчанию — ответы приходят быстрее." else "Снижает частоту запросов — подходит для спокойного просмотра истории.",
         )
     }
 }
 
 internal fun MainActivity.sessionSyncIntervalLabel(): String {
-    return "${sessionSyncIntervalSeconds} 秒"
+    return "${sessionSyncIntervalSeconds} с"
 }
 
 internal fun MainActivity.sessionSyncIntervalDescription(): String {
-    return "当前打开会话的内容轮询间隔。只影响 active session，不影响项目和历史列表刷新。"
+    return "Интервал опроса содержимого открытой сессии. Влияет только на active session, не на обновление проектов и списка истории."
 }
 
 internal fun MainActivity.loadBridgeConnectTimeoutSeconds(): Int {
@@ -152,23 +152,23 @@ internal fun MainActivity.bridgeConnectTimeoutMenuOptions(): List<SelectionMenuO
     return listOf(3, 5, 10, 15).map { seconds ->
         SelectionMenuOption(
             value = seconds.toString(),
-            label = "${seconds} 秒",
+            label = "${seconds} с",
             supporting =
                 if (seconds == DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS) {
-                    "默认值，弱网下更快暴露失败。"
+                    "Значение по умолчанию — при слабой сети сбой выявляется быстрее."
                 } else {
-                    "适合网络更慢或跨网段连接。"
+                    "Подходит для более медленной сети или соединений между подсетями."
                 },
         )
     }
 }
 
 internal fun MainActivity.bridgeConnectTimeoutLabel(): String {
-    return "${bridgeConnectTimeoutSeconds} 秒"
+    return "${bridgeConnectTimeoutSeconds} с"
 }
 
 internal fun MainActivity.bridgeConnectTimeoutDescription(): String {
-    return "WebSocket 建连超时。超时后会按当前自动重连策略处理。"
+    return "Тайм-аут установки соединения WebSocket. После истечения применяется текущая политика автопереподключения."
 }
 
 internal fun MainActivity.loadBridgePingIntervalSeconds(): Int {
@@ -186,23 +186,23 @@ internal fun MainActivity.bridgePingIntervalMenuOptions(): List<SelectionMenuOpt
     return listOf(10, 20, 30, 60).map { seconds ->
         SelectionMenuOption(
             value = seconds.toString(),
-            label = "${seconds} 秒",
+            label = "${seconds} с",
             supporting =
                 if (seconds == DEFAULT_BRIDGE_PING_INTERVAL_SECONDS) {
-                    "默认值，兼顾断线发现速度和功耗。"
+                    "Значение по умолчанию — баланс скорости обнаружения обрыва и энергопотребления."
                 } else {
-                    "更快发现断线，或更少心跳流量。"
+                    "Быстрее обнаруживать обрыв или меньше трафика пульса."
                 },
         )
     }
 }
 
 internal fun MainActivity.bridgePingIntervalLabel(): String {
-    return "${bridgePingIntervalSeconds} 秒"
+    return "${bridgePingIntervalSeconds} с"
 }
 
 internal fun MainActivity.bridgePingIntervalDescription(): String {
-    return "WebSocket 心跳间隔。越短越快发现断线，但会增加心跳流量。"
+    return "Интервал пульса WebSocket. Чем короче, тем быстрее обнаруживается обрыв, но растёт трафик пульса."
 }
 
 internal fun MainActivity.loadSessionIncrementalSyncEnabled(): Boolean {
@@ -249,12 +249,12 @@ internal fun MainActivity.appPackageLabel(): String {
 
 internal fun appFeatureSummaries(): List<String> {
     return listOf(
-        "连接私有网络中的 Codex Bridge",
-        "查看、切换和恢复 Codex 会话",
-        "发送消息并流式查看回复",
-        "处理审批请求和文件变更",
-        "浏览代码文件、diff 和会话变更",
-        "备份和恢复连接信息与本地设置",
+        "Подключение к Codex Bridge в частной сети",
+        "Просмотр, переключение и восстановление сессий Codex",
+        "Отправить сообщение и смотреть ответ потоком",
+        "Обработка запросов на подтверждение и изменений файлов",
+        "Просмотр файлов кода, diff и изменений сессии",
+        "Резервное копирование и восстановление данных подключения и локальных настроек",
     )
 }
 
@@ -262,18 +262,18 @@ internal fun MainActivity.startupPageMenuOptions(): List<SelectionMenuOption> {
     return listOf(
         SelectionMenuOption(
             value = AppPage.Chat.preferenceValue(),
-            label = "聊天",
-            supporting = "启动后直接进入当前会话页面。",
+            label = "Чат",
+            supporting = "После запуска сразу открывать страницу текущей сессии.",
         ),
         SelectionMenuOption(
             value = AppPage.Connection.preferenceValue(),
-            label = "连接设置",
-            supporting = "先看到 bridge 地址和连接状态。",
+            label = "Настройки подключения",
+            supporting = "Сначала видно адрес bridge и состояние подключения.",
         ),
         SelectionMenuOption(
             value = AppPage.Settings.preferenceValue(),
-            label = "设置",
-            supporting = "先进入本地偏好设置页面。",
+            label = "Настройки",
+            supporting = "Сначала откройте страницу локальных настроек.",
         ),
     )
 }
@@ -282,36 +282,36 @@ internal fun MainActivity.autoReconnectAttemptMenuOptions(): List<SelectionMenuO
     return listOf(
         SelectionMenuOption(
             value = "0",
-            label = "不限制",
-            supporting = "断线后持续重试，间隔逐步拉长。",
+            label = "Без ограничений",
+            supporting = "После обрыва попытки продолжаются, интервал постепенно увеличивается.",
         ),
         SelectionMenuOption(
             value = "3",
-            label = "3 次",
-            supporting = "最多自动重连 3 次。",
+            label = "3 раза",
+            supporting = "Не более 3 автопереподключений.",
         ),
         SelectionMenuOption(
             value = "5",
-            label = "5 次",
-            supporting = "最多自动重连 5 次。",
+            label = "5 раз",
+            supporting = "Не более 5 автопереподключений.",
         ),
         SelectionMenuOption(
             value = "10",
-            label = "10 次",
-            supporting = "最多自动重连 10 次。",
+            label = "10 раз",
+            supporting = "Не более 10 автопереподключений.",
         ),
     )
 }
 
 internal fun MainActivity.autoReconnectMaxAttemptsLabel(): String {
-    return if (autoReconnectMaxAttempts <= 0) "不限制" else "${autoReconnectMaxAttempts} 次"
+    return if (autoReconnectMaxAttempts <= 0) "Без ограничений" else "${autoReconnectMaxAttempts} раз"
 }
 
 internal fun MainActivity.autoReconnectMaxAttemptsDescription(): String {
     return if (autoReconnectMaxAttempts <= 0) {
-        "断线后会一直自动重试，重连间隔会逐步增加。"
+        "После обрыва автоматические попытки продолжаются, интервал между ними постепенно растёт."
     } else {
-        "每次断线后最多自动重试 ${autoReconnectMaxAttempts} 次。"
+        "Максимум автоматических попыток после каждого обрыва: ${autoReconnectMaxAttempts} раз."
     }
 }
 

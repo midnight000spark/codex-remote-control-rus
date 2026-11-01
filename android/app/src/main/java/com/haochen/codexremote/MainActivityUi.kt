@@ -241,12 +241,12 @@ internal fun MainActivity.RemoteApp() {
                                 IconButton(onClick = { closeCodeBrowser() }) {
                                     Icon(
                                         painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                                        contentDescription = "关闭文件查看",
+                                        contentDescription = "Закрыть просмотр файла",
                                         tint = uiText,
                                     )
                                 }
                                 Text(
-                                    text = state.title.ifBlank { "文件修改" },
+                                    text = state.title.ifBlank { "Изменение файла" },
                                     color = uiText,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
@@ -374,7 +374,7 @@ internal fun MainActivity.RemoteApp() {
                     sendApproval(approval.requestId, action)
                 },
                 onDismiss = {
-                    showNotice("还有待处理审批，请先完成后再继续")
+                    showNotice("Есть незавершённые подтверждения — сначала завершите их")
                 },
             )
         }
@@ -387,8 +387,8 @@ internal fun MainActivity.AppTopBar(onOpenDrawer: () -> Unit) {
     val title =
         when (currentPage) {
             AppPage.Chat -> activeSession()?.titleLine() ?: "Codex Remote"
-            AppPage.Connection -> "连接设置"
-            AppPage.Settings -> "设置"
+            AppPage.Connection -> "Настройки подключения"
+            AppPage.Settings -> "Настройки"
         }
 
     TopAppBar(
@@ -442,7 +442,7 @@ internal fun MainActivity.AppTopBar(onOpenDrawer: () -> Unit) {
                     ) {
                         Icon(
                             painter = painterResource(id = android.R.drawable.ic_dialog_info),
-                            contentDescription = "会话信息，长按重建历史记录",
+                            contentDescription = "Сведения о сессии; долгое нажатие пересобирает историю",
                             tint = uiMuted,
                             modifier = Modifier.size(19.dp),
                         )
@@ -503,7 +503,7 @@ internal fun MainActivity.ConnectionStatusBadge(active: Boolean) {
         ) {
             StatusDot(active = active)
             Text(
-                text = if (active) "已连接" else "未连接",
+                text = if (active) "Подключено" else "Не подключено",
                 color = uiText,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,

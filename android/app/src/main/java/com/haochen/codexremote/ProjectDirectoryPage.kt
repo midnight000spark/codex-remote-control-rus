@@ -108,19 +108,19 @@ private fun MainActivity.ProjectDirectoryPage(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "返回新对话",
+                        contentDescription = "Вернуться к новому диалогу",
                         tint = uiText,
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "选择项目目录",
+                        text = "Выбрать каталог проекта",
                         color = uiText,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "远程主机文件系统",
+                        text = "Файловая система удалённого хоста",
                         color = uiMuted,
                         fontSize = 12.sp,
                     )
@@ -137,13 +137,13 @@ private fun MainActivity.ProjectDirectoryPage(
                     value = pathInput,
                     onValueChange = { pathInput = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("远程路径") },
+                    label = { Text("Удалённый путь") },
                     singleLine = true,
                     trailingIcon = {
                         IconButton(onClick = browseInput, enabled = !state.loading) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = "打开路径",
+                                contentDescription = "Открыть путь",
                                 tint = uiText,
                             )
                         }
@@ -152,7 +152,7 @@ private fun MainActivity.ProjectDirectoryPage(
                     keyboardActions = KeyboardActions(onGo = { browseInput() }),
                 )
                 Text(
-                    text = state.currentPath.ifBlank { "正在读取 Bridge 默认目录…" },
+                    text = state.currentPath.ifBlank { "Читаю каталог Bridge по умолчанию…" },
                     color = uiMuted,
                     fontSize = 11.sp,
                     maxLines = 2,
@@ -161,10 +161,10 @@ private fun MainActivity.ProjectDirectoryPage(
                 if (recentPaths.isNotEmpty()) {
                     val selectedRecentPath = recentPaths.firstOrNull { it == state.currentPath }
                     SelectionMenuField(
-                        label = "最近使用",
+                        label = "Недавние",
                         selectedLabel = selectedRecentPath?.let { path ->
                             workspaceDisplayName(path, fallback = path)
-                        } ?: "选择最近项目",
+                        } ?: "Выбрать недавний проект",
                         expanded = recentExpanded,
                         onExpandedChange = { recentExpanded = it },
                         options = recentPaths.map { path ->
@@ -189,7 +189,7 @@ private fun MainActivity.ProjectDirectoryPage(
                 state.parentPath?.let { parentPath ->
                     item(key = "parent:$parentPath") {
                         ProjectDirectoryRow(
-                            title = "上一级",
+                            title = "На уровень выше",
                             supporting = null,
                             marker = "↰",
                             onClick = { onBrowse(parentPath) },
@@ -237,14 +237,14 @@ private fun MainActivity.ProjectDirectoryPage(
                                 fontSize = 12.sp,
                             )
                             TextButton(onClick = { onBrowse(state.requestedPath) }) {
-                                Text("重试")
+                                Text("Повторить")
                             }
                         }
                     }
                 } else if (state.directories.isEmpty()) {
                     item {
                         Text(
-                            text = "这个目录下没有子目录",
+                            text = "В этом каталоге нет подкаталогов",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(24.dp),
@@ -257,7 +257,7 @@ private fun MainActivity.ProjectDirectoryPage(
                 if (state.truncated) {
                     item {
                         Text(
-                            text = "目录较多，仅显示前 500 项。可直接输入更具体的路径。",
+                            text = "Каталогов много, показаны только первые 500 элементов. Можно ввести более конкретный путь.",
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                             color = uiMuted,
                             fontSize = 11.sp,
@@ -277,7 +277,7 @@ private fun MainActivity.ProjectDirectoryPage(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = state.currentPath.ifBlank { "正在读取 Bridge 默认目录…" },
+                        text = state.currentPath.ifBlank { "Читаю каталог Bridge по умолчанию…" },
                         color = uiMuted,
                         fontSize = 11.sp,
                         maxLines = 2,
@@ -289,7 +289,7 @@ private fun MainActivity.ProjectDirectoryPage(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
                     ) {
-                        Text("选择当前目录")
+                        Text("Выбрать текущий каталог")
                     }
                 }
             }

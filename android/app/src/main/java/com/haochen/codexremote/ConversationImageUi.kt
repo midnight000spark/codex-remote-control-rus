@@ -81,7 +81,7 @@ internal fun MainActivity.ConversationImageViewerDialog(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                        contentDescription = "关闭图片查看",
+                        contentDescription = "Закрыть просмотр изображения",
                         tint = Color.White,
                     )
                 }
@@ -142,13 +142,13 @@ internal fun MainActivity.ConversationLongPressDialog(
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     if (state.kind == ConversationLongPressKind.Image) {
-                        ConversationLongPressMenuItem("复制图片", onCopyImage)
+                        ConversationLongPressMenuItem("Копировать изображение", onCopyImage)
                         HorizontalDivider(color = uiBorder)
-                        ConversationLongPressMenuItem("保存图片", onSaveImage)
+                        ConversationLongPressMenuItem("Сохранить изображение", onSaveImage)
                     } else {
-                        ConversationLongPressMenuItem("打开链接", onOpenLink)
+                        ConversationLongPressMenuItem("Открыть ссылку", onOpenLink)
                         HorizontalDivider(color = uiBorder)
-                        ConversationLongPressMenuItem("复制链接", onCopyLink)
+                        ConversationLongPressMenuItem("Копировать ссылку", onCopyLink)
                     }
                 }
             }

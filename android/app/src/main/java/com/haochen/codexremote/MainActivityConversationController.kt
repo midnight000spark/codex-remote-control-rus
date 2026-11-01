@@ -296,15 +296,15 @@ internal fun MainActivity.updateLiveTurnStatusFromItem(eventName: String, item: 
 
 internal fun MainActivity.buildItemLiveStatus(item: JSONObject, started: Boolean): String? {
         return when (item.optString("type", "")) {
-            "contextCompaction" -> if (started) "正在整理上下文…" else "继续响应中…"
-            "reasoning" -> if (started) buildReasoningLiveStatus(item) else "继续响应中…"
-            "plan" -> if (started) "正在整理计划…" else "继续响应中…"
-            "commandExecution" -> if (started) buildCommandExecutionLiveStatus(item) else buildCompletedItemLiveStatus(item, "命令执行完成")
-            "fileChange" -> if (started) buildFileChangeItemLiveStatus(item) else buildCompletedItemLiveStatus(item, "文件修改完成")
-            "mcpToolCall" -> if (started) buildMcpToolLiveStatus(item) else buildCompletedItemLiveStatus(item, "工具调用完成")
-            "dynamicToolCall" -> if (started) buildDynamicToolLiveStatus(item) else buildCompletedItemLiveStatus(item, "工具运行完成")
-            "collabAgentToolCall" -> if (started) buildCollabAgentLiveStatus(item) else buildCompletedItemLiveStatus(item, "子任务完成")
-            "agentMessage" -> if (started) "正在准备回复…" else "回复完成，正在同步…"
+            "contextCompaction" -> if (started) "Привожу в порядок контекст…" else "Продолжаю ответ…"
+            "reasoning" -> if (started) buildReasoningLiveStatus(item) else "Продолжаю ответ…"
+            "plan" -> if (started) "Составляю план…" else "Продолжаю ответ…"
+            "commandExecution" -> if (started) buildCommandExecutionLiveStatus(item) else buildCompletedItemLiveStatus(item, "Команда выполнена")
+            "fileChange" -> if (started) buildFileChangeItemLiveStatus(item) else buildCompletedItemLiveStatus(item, "Изменение файла завершено")
+            "mcpToolCall" -> if (started) buildMcpToolLiveStatus(item) else buildCompletedItemLiveStatus(item, "Вызов инструмента завершён")
+            "dynamicToolCall" -> if (started) buildDynamicToolLiveStatus(item) else buildCompletedItemLiveStatus(item, "Работа инструмента завершена")
+            "collabAgentToolCall" -> if (started) buildCollabAgentLiveStatus(item) else buildCompletedItemLiveStatus(item, "Подзадача завершена")
+            "agentMessage" -> if (started) "Готовлю ответ…" else "Ответ завершён, синхронизирую…"
             else -> null
         }
     }
@@ -312,9 +312,9 @@ internal fun MainActivity.buildItemLiveStatus(item: JSONObject, started: Boolean
 internal fun MainActivity.buildAssistantOutputLiveStatus(turnKey: String, itemKey: String): String {
         val bufferedLength = assistantDeltaBuffers[buildAssistantBubbleKey(turnKey, itemKey)]?.length ?: 0
         return if (bufferedLength > 0) {
-            "正在输出: 约 $bufferedLength 字"
+            "Вывод: около $bufferedLength символов"
         } else {
-            "正在输出…"
+            "Вывод…"
         }
     }
 
@@ -326,47 +326,47 @@ internal fun MainActivity.buildApprovalLiveStatus(eventName: String, payload: JS
             else -> ""
         }
         val label = when (eventName) {
-            "item/fileChange/requestApproval", "applyPatchApproval" -> "等待文件修改审批"
-            "item/permissions/requestApproval" -> "等待权限审批"
-            "execCommandApproval", "item/commandExecution/requestApproval" -> "等待命令审批"
-            else -> "等待审批"
+            "item/fileChange/requestApproval", "applyPatchApproval" -> "Ожидание подтверждения изменения файла"
+            "item/permissions/requestApproval" -> "Ожидание подтверждения прав"
+            "execCommandApproval", "item/commandExecution/requestApproval" -> "Ожидание подтверждения команды"
+            else -> "Ожидание подтверждения"
         }
         return joinLiveStatus(label, detail)
     }
 
 internal fun MainActivity.buildFileChangePatchLiveStatus(payload: JSONObject): String {
         val diffEntries = payload.optJSONArray("changes").toConversationDiffEntries()
-        return joinLiveStatus("正在改文件", describeDiffEntries(diffEntries))
+        return joinLiveStatus("Изменяю файлы", describeDiffEntries(diffEntries))
     }
 
 internal fun MainActivity.buildTurnDiffLiveStatus(payload: JSONObject): String {
         val stats = buildDiffStatsLine(diffEntries = emptyList(), fallbackDiff = payload.optString("diff", ""))
-        return joinLiveStatus("正在改文件", stats.orEmpty())
+        return joinLiveStatus("Изменяю файлы", stats.orEmpty())
     }
 
 internal fun MainActivity.buildReasoningLiveStatus(item: JSONObject): String {
         val summaryCount = item.optJSONArray("summary")?.length() ?: 0
         val contentCount = item.optJSONArray("content")?.length() ?: 0
         val detail = when {
-            summaryCount > 0 && contentCount > 0 -> "$summaryCount 条摘要 / $contentCount 段思考"
-            summaryCount > 0 -> "$summaryCount 条摘要"
-            contentCount > 0 -> "$contentCount 段思考"
+            summaryCount > 0 && contentCount > 0 -> "$summaryCount сводок / $contentCount фрагментов рассуждений"
+            summaryCount > 0 -> "$summaryCount сводок"
+            contentCount > 0 -> "$contentCount фрагментов рассуждений"
             else -> ""
         }
-        return joinLiveStatus("正在思考", detail)
+        return joinLiveStatus("Размышляю", detail)
     }
 
 internal fun MainActivity.buildCommandExecutionLiveStatus(item: JSONObject): String {
-        return joinLiveStatus("正在执行命令", item.optString("command", "").trim())
+        return joinLiveStatus("Выполняю команду", item.optString("command", "").trim())
     }
 
 internal fun MainActivity.buildFileChangeItemLiveStatus(item: JSONObject): String {
         val diffEntries = item.optJSONArray("changes").toConversationDiffEntries()
-        return joinLiveStatus("正在改文件", describeDiffEntries(diffEntries))
+        return joinLiveStatus("Изменяю файлы", describeDiffEntries(diffEntries))
     }
 
 internal fun MainActivity.buildMcpToolLiveStatus(item: JSONObject): String {
-        return joinLiveStatus("正在调用工具", firstNonEmpty(item.optString("server", ""), item.optString("tool", "")))
+        return joinLiveStatus("Вызываю инструмент", firstNonEmpty(item.optString("server", ""), item.optString("tool", "")))
     }
 
 internal fun MainActivity.buildDynamicToolLiveStatus(item: JSONObject): String {
@@ -374,20 +374,20 @@ internal fun MainActivity.buildDynamicToolLiveStatus(item: JSONObject): String {
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .joinToString(".")
-        return joinLiveStatus("正在运行工具", toolName)
+        return joinLiveStatus("Запускаю инструмент", toolName)
     }
 
 internal fun MainActivity.buildCollabAgentLiveStatus(item: JSONObject): String {
         val prompt = item.optString("prompt", "").trim()
-        return joinLiveStatus("正在处理子任务", item.optString("tool", "").ifBlank { prompt })
+        return joinLiveStatus("Обрабатываю подзадачу", item.optString("tool", "").ifBlank { prompt })
     }
 
 internal fun MainActivity.buildCompletedItemLiveStatus(item: JSONObject, fallback: String): String {
         val status = item.optString("status", "").trim()
         return when (status) {
-            "failed" -> "${fallback.removeSuffix("完成")}失败"
-            "declined" -> "${fallback.removeSuffix("完成")}已拒绝"
-            else -> "$fallback，继续响应中…"
+            "failed" -> "${fallback.removeSuffix("Завершено")}Не удалось"
+            "declined" -> "${fallback.removeSuffix("Завершено")}Отклонено"
+            else -> "$fallback, продолжаю ответ…"
         }
     }
 
@@ -417,7 +417,7 @@ internal fun MainActivity.describeDiffEntries(diffEntries: List<ConversationDiff
         val stats = buildDiffStatsLine(diffEntries = diffEntries, fallbackDiff = null)
         val fileLabel = when (diffEntries.size) {
             1 -> diffEntries.first().filenameLabel()
-            else -> "${diffEntries.size} 个文件"
+            else -> "${diffEntries.size} файлов"
         }
         return listOf(fileLabel, stats).filter { !it.isNullOrBlank() }.joinToString(" ")
     }
@@ -437,7 +437,7 @@ internal fun compactLiveStatusDetail(value: String, maxLength: Int = 42): String
 internal fun MainActivity.updateLiveTurnStatusFromWarning(payload: JSONObject) {
         val message = extractWarningText(payload)
         if (message.contains("Long threads", ignoreCase = true)) {
-            updateLiveTurnStatus("正在整理长上下文…")
+            updateLiveTurnStatus("Сжимаю длинный контекст…")
         }
     }
 
@@ -445,17 +445,17 @@ internal fun MainActivity.updateLiveTurnStatusFromError(payload: JSONObject) {
         val error = payload.optJSONObject("error") ?: return
         val message = cleanDisplayText(error.opt("message"))
         when {
-            message.startsWith("Reconnecting...", ignoreCase = true) -> updateLiveTurnStatus("Codex 连接波动，正在重试…")
-            payload.optBoolean("willRetry", false) -> updateLiveTurnStatus("Codex 请求异常，正在重试…")
-            message.isNotBlank() -> updateLiveTurnStatus("Codex 响应异常")
+            message.startsWith("Reconnecting...", ignoreCase = true) -> updateLiveTurnStatus("Нестабильное соединение Codex, повторяю…")
+            payload.optBoolean("willRetry", false) -> updateLiveTurnStatus("Ошибка запроса Codex, повторяю…")
+            message.isNotBlank() -> updateLiveTurnStatus("Аномальный ответ Codex")
         }
     }
 
 internal fun MainActivity.updateLiveTurnStatusFromThreadStatus(status: JSONObject?) {
         when (status?.optString("type", "")?.trim()) {
-            "active" -> updateLiveTurnStatus("回合进行中…")
-            "idle" -> if (activeTurnId != null) updateLiveTurnStatus("回合进行中…")
-            "systemError" -> updateLiveTurnStatus("Codex 响应异常")
+            "active" -> updateLiveTurnStatus("Идёт ход…")
+            "idle" -> if (activeTurnId != null) updateLiveTurnStatus("Идёт ход…")
+            "systemError" -> updateLiveTurnStatus("Аномальный ответ Codex")
         }
     }
 
@@ -465,23 +465,23 @@ internal fun MainActivity.updateLiveTurnStatus(status: String?) {
 
 internal fun MainActivity.labelRawResponseRole(role: String): String {
         return when (role) {
-            "assistant" -> "助手"
-            "developer" -> "开发者"
-            "user" -> "用户"
-            else -> role.ifBlank { "消息" }
+            "assistant" -> "Ассистент"
+            "developer" -> "Разработчик"
+            "user" -> "Пользователь"
+            else -> role.ifBlank { "Сообщение" }
         }
     }
 
 internal fun MainActivity.labelThreadItem(item: JSONObject): String {
         return when (item.optString("type", "")) {
-            "plan" -> "计划"
-            "reasoning" -> "思考"
-            "commandExecution" -> "命令执行"
-            "fileChange" -> "文件修改"
-            "imageView" -> "图片查看"
-            "imageGeneration" -> "图片生成"
-            "contextCompaction" -> "上下文压缩"
-            else -> item.optString("type", "项目")
+            "plan" -> "План"
+            "reasoning" -> "Рассуждения"
+            "commandExecution" -> "Выполнение команды"
+            "fileChange" -> "Изменение файла"
+            "imageView" -> "Просмотр изображений"
+            "imageGeneration" -> "Генерация изображений"
+            "contextCompaction" -> "Сжатие контекста"
+            else -> item.optString("type", "Проект")
         }
     }
 
@@ -522,13 +522,13 @@ internal fun MainActivity.extractErrorText(error: JSONObject?): String {
     }
 
 internal fun MainActivity.describeThreadStatus(status: JSONObject?): String {
-        if (status == null) return "未知"
+        if (status == null) return "Неизвестно"
         val type = status.optString("type", "").trim()
         return when (type) {
-            "active" -> "活跃"
-            "idle" -> "空闲"
-            "systemError" -> "系统错误"
-            "notLoaded" -> "未加载"
+            "active" -> "Активна"
+            "idle" -> "Свободно"
+            "systemError" -> "Системная ошибка"
+            "notLoaded" -> "Не загружено"
             else -> if (type.isNotBlank()) type else formatJson(status)
         }
     }

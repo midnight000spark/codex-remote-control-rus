@@ -79,7 +79,7 @@ internal fun MainActivity.requestProjectDirectories(path: String) {
         },
     )
     if (!sent) {
-        projectDirectoryPickerState = loadingState.copy(loading = false, error = "无法读取远程目录")
+        projectDirectoryPickerState = loadingState.copy(loading = false, error = "Не удалось прочитать удалённый каталог")
     }
 }
 

@@ -234,12 +234,12 @@ internal enum class CodeBrowserFileKind {
 
     fun displayLabel(): String =
         when (this) {
-            Text -> "文本文件"
-            Image -> "图片"
-            Pdf -> "PDF 文档"
-            Audio -> "音频"
-            Video -> "视频"
-            Binary -> "二进制文件"
+            Text -> "Текстовый файл"
+            Image -> "Изображение"
+            Pdf -> "Документ PDF"
+            Audio -> "Аудио"
+            Video -> "Видео"
+            Binary -> "Двоичный файл"
         }
 }
 

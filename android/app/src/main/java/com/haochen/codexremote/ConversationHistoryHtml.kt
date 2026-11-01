@@ -232,7 +232,7 @@ internal fun buildConversationImageHtml(
     val normalizedSource = source?.trim().orEmpty()
     val safeAlt = escapeConversationHtmlAttribute(alt)
     if (normalizedSource.isBlank()) {
-        return """<span class="cr-conversation-image-frame"><span class="cr-conversation-image-error">图片无法加载</span></span>"""
+        return """<span class="cr-conversation-image-frame"><span class="cr-conversation-image-error">Не удалось загрузить изображение</span></span>"""
     }
     return """
         <span class="cr-conversation-image-frame">
@@ -244,7 +244,7 @@ internal fun buildConversationImageHtml(
                 decoding="async"
                 onerror="this.hidden=true;this.nextElementSibling.hidden=false"
             />
-            <span class="cr-conversation-image-error" hidden>图片加载失败</span>
+            <span class="cr-conversation-image-error" hidden>Не удалось загрузить изображение</span>
         </span>
     """.trimIndent()
 }
@@ -259,7 +259,7 @@ internal fun ConversationItem.SystemNote.toHtml(): String =
 internal fun ConversationItem.FileChange.toHtml(displayBasePath: String?): String {
     val diffStats = buildConversationDiffStatsLine(diffEntries, fallbackDiff)
     val metaHtml = buildConversationFileChangeMetaHtml(
-        title = title.ifBlank { "文件修改" },
+        title = title.ifBlank { "Изменение файла" },
         stats = diffStats,
         browserItemId = id,
     )
@@ -300,7 +300,7 @@ internal fun buildConversationDiffDetailsHtml(
         } else {
             buildConversationFallbackDiffHtml(
                 diffText = fallbackDiff.orEmpty(),
-                defaultLabel = "查看 diff",
+                defaultLabel = "Просмотр diff",
                 browserItemId = browserItemId,
             )
         }
@@ -389,7 +389,7 @@ internal fun buildConversationDiffEntryHtml(
                 ></span>
             </div>
             <div class="cr-diff-panel" id="$panelId">
-                <pre><code>${buildConversationDiffCodeHtml(entry.diff.ifBlank { "无可显示 diff" }, entry.browsePath())}</code></pre>
+                <pre><code>${buildConversationDiffCodeHtml(entry.diff.ifBlank { "Нет diff для отображения" }, entry.browsePath())}</code></pre>
             </div>
         </div>
     """.trimIndent()
@@ -424,7 +424,7 @@ internal fun buildConversationFallbackDiffHtml(
                 ></span>
             </div>
             <div class="cr-diff-panel" id="$panelId">
-                <pre><code>${buildConversationDiffCodeHtml(diffText.ifBlank { "无可显示 diff" })}</code></pre>
+                <pre><code>${buildConversationDiffCodeHtml(diffText.ifBlank { "Нет diff для отображения" })}</code></pre>
             </div>
         </div>
     """.trimIndent()
@@ -486,7 +486,7 @@ internal fun buildConversationFileChangeMetaHtml(
         if (!stats.isNullOrBlank()) {
             append("""<span class="cr-diff-inline-stats">${buildConversationDiffStatsHtml(stats)}</span>""")
         }
-        append("""<span class="cr-file-change-open-hint">查看详情 ▸</span>""")
+        append("""<span class="cr-file-change-open-hint">Подробнее ▸</span>""")
     }
     val titleHtml =
         browserItemId?.takeIf { it.isNotBlank() }?.let {

@@ -95,13 +95,13 @@ internal fun MainActivity.NewChatSheet(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "新对话",
+                text = "Новый диалог",
                 color = uiText,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "设置项目目录、模型、思考强度、审批策略和沙箱。",
+                text = "Настройка каталога проекта, модели, интенсивности рассуждений, политики подтверждений и песочницы.",
                 color = uiMuted,
                 fontSize = 12.sp,
                 maxLines = 2,
@@ -110,7 +110,7 @@ internal fun MainActivity.NewChatSheet(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Label("项目目录")
+            Label("Каталог проекта")
             OutlinedButton(
                 onClick = onProjectPathClick,
                 modifier = Modifier.fillMaxWidth(),
@@ -122,14 +122,14 @@ internal fun MainActivity.NewChatSheet(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = workspaceDisplayName(draft.projectPath, fallback = "Bridge 默认目录"),
+                            text = workspaceDisplayName(draft.projectPath, fallback = "Каталог Bridge по умолчанию"),
                             color = uiText,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = draft.projectPath ?: "点击选择远程主机上的项目目录",
+                            text = draft.projectPath ?: "Нажмите, чтобы выбрать каталог проекта на удалённом хосте",
                             color = uiMuted,
                             fontSize = 11.sp,
                             maxLines = 2,
@@ -143,8 +143,8 @@ internal fun MainActivity.NewChatSheet(
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectionMenuField(
-                label = "模型",
-                selectedLabel = selectedModelInfo?.displayName ?: draft.model.ifBlank { "请选择模型" },
+                label = "Модель",
+                selectedLabel = selectedModelInfo?.displayName ?: draft.model.ifBlank { "Выберите модель" },
                 expanded = modelExpanded,
                 onExpandedChange = { modelExpanded = it },
                 enabled = modelOptions.isNotEmpty(),
@@ -158,7 +158,7 @@ internal fun MainActivity.NewChatSheet(
                 onSelect = onModelChange,
             )
             if (modelOptions.isEmpty()) {
-                BodyText("模型列表还没加载完成。")
+                BodyText("Список моделей ещё не загружен.")
             } else {
                 selectedModelInfo?.description?.takeIf { it.isNotBlank() }?.let { description ->
                     Text(
@@ -173,7 +173,7 @@ internal fun MainActivity.NewChatSheet(
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectionMenuField(
-                label = "思考强度",
+                label = "Интенсивность рассуждений",
                 selectedLabel = selectedReasoningOption.label,
                 expanded = effortExpanded,
                 onExpandedChange = { effortExpanded = it },
@@ -191,7 +191,7 @@ internal fun MainActivity.NewChatSheet(
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectionMenuField(
-                label = "审批策略",
+                label = "Политика подтверждений",
                 selectedLabel = approvalOptions.firstOrNull { it.value == draft.approvalPolicy }?.label ?: draft.approvalPolicy,
                 expanded = approvalExpanded,
                 onExpandedChange = { approvalExpanded = it },
@@ -205,7 +205,7 @@ internal fun MainActivity.NewChatSheet(
                 lineHeight = 16.sp,
             )
             Text(
-                text = "permission profile 不单独手填；新对话按当前默认执行，历史对话继续沿用原会话配置。",
+                text = "permission profile не задаётся вручную; новые диалоги используют текущие значения по умолчанию, исторические — прежнюю конфигурацию сессии.",
                 color = uiMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -214,7 +214,7 @@ internal fun MainActivity.NewChatSheet(
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectionMenuField(
-                label = "沙箱",
+                label = "Песочница",
                 selectedLabel = sandboxOptions.firstOrNull { it.value == draft.sandbox }?.label ?: draft.sandbox,
                 expanded = sandboxExpanded,
                 onExpandedChange = { sandboxExpanded = it },
@@ -231,7 +231,7 @@ internal fun MainActivity.NewChatSheet(
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                Text("取消")
+                Text("Отмена")
             }
             Button(
                 onClick = onConfirm,
@@ -239,7 +239,7 @@ internal fun MainActivity.NewChatSheet(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = uiPrimary),
             ) {
-                Text("确定")
+                Text("Подтвердить")
             }
         }
     }
@@ -348,7 +348,7 @@ internal fun MainActivity.SessionInfoSheet(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = "会话信息",
+                    text = "Сведения о сессии",
                     color = uiText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -371,12 +371,12 @@ internal fun MainActivity.SessionInfoSheet(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "重建历史记录",
+                        contentDescription = "Пересобрать историю",
                         tint = if (state.canRebuildHistory) uiPrimary else uiMuted,
                     )
                 }
                 OutlinedButton(onClick = onDismiss) {
-                    Text("关闭")
+                    Text("Закрыть")
                 }
             }
         }
@@ -397,9 +397,9 @@ internal fun MainActivity.SessionInfoSheet(
                                 onClick = {},
                                 onLongClick = {
                                     if (copyTextToClipboard(label, value)) {
-                                        showNotice("已复制$label")
+                                        showNotice("Скопировано: $label")
                                     } else {
-                                        showNotice("复制失败")
+                                        showNotice("Не удалось скопировать")
                                     }
                                 },
                             )
@@ -428,7 +428,7 @@ internal fun MainActivity.SessionInfoSheet(
                             IconButton(onClick = onSwitchToFullAccess) {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_upgrade_access),
-                                    contentDescription = "切回完整访问",
+                                    contentDescription = "Вернуть полный доступ",
                                     tint = uiPrimary,
                                 )
                             }
@@ -510,7 +510,7 @@ internal fun MainActivity.ModelCard(
                 )
                 Spacer(modifier = Modifier.widthIn(min = 8.dp))
                 Text(
-                    text = if (model.isDefault) "默认" else model.model,
+                    text = if (model.isDefault) "По умолчанию" else model.model,
                     color = uiMuted,
                     fontSize = 11.sp,
                     maxLines = 1,

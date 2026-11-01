@@ -223,9 +223,27 @@ async function realpathOrResolve(value) {
 export const DEFAULT_UPLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Uploaded images are copied into the bridge state directory and referenced by
-// absolute path from the conversation, so nothing ever deletes them. Sweep the
-// ones that no stored session mentions any more and that are older than the
-// TTL; referenced files are always kept.
+// path from the conversation, so nothing ever deletes them. Sweep the ones that
+// no stored session mentions any more and that are older than the TTL;
+// referenced files are always kept.
+//
+// References are matched by basename: the same upload is spelled as an absolute
+// path by the bridge, but a relative path or a differently rooted state
+// directory must not make a live image look unreferenced.
+function collectReferenceNames(value, names) {
+  if (typeof value === 'string') {
+    if (value) names.add(path.basename(value));
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectReferenceNames(item, names);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) collectReferenceNames(item, names);
+  }
+}
+
 export async function sweepSessionUploads(store, { maxAgeMs = DEFAULT_UPLOAD_TTL_MS, now = Date.now() } = {}) {
   const uploadDir = path.join(path.dirname(store.filePath), 'uploads');
   let entries;
@@ -235,9 +253,9 @@ export async function sweepSessionUploads(store, { maxAgeMs = DEFAULT_UPLOAD_TTL
     return { removed: 0, kept: 0 };
   }
 
-  let references = '';
+  const referencedNames = new Set();
   try {
-    references = JSON.stringify(store.listSessions());
+    store.forEachSession((session) => collectReferenceNames(session, referencedNames));
   } catch {
     // If the sessions cannot be read, keep everything rather than risk deleting
     // an image that is still on screen.
@@ -247,15 +265,18 @@ export async function sweepSessionUploads(store, { maxAgeMs = DEFAULT_UPLOAD_TTL
   let removed = 0;
   let kept = 0;
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const filePath = path.join(uploadDir, entry.name);
-    if (references.includes(filePath) || references.includes(path.resolve(filePath))) {
+    if (referencedNames.has(entry.name)) {
       kept += 1;
       continue;
     }
+    const filePath = path.join(uploadDir, entry.name);
     try {
-      const stat = await fs.stat(filePath);
-      if (now - stat.mtimeMs < maxAgeMs) {
+      // lstat, not stat: a symlink is removed as a link. Following it would
+      // either delete a file outside the uploads directory or leave the link
+      // behind forever.
+      const stat = await fs.lstat(filePath);
+      // `<=` keeps a file that sits exactly on the TTL boundary.
+      if (now - stat.mtimeMs <= maxAgeMs) {
         kept += 1;
         continue;
       }

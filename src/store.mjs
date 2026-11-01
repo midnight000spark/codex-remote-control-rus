@@ -121,6 +121,15 @@ export class StateStore {
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   }
 
+  // Read-only traversal of the live sessions, without the clone and freeze that
+  // getSession() performs. For callers that only scan for data (the uploads
+  // sweep); the values must not be mutated.
+  forEachSession(visitor) {
+    for (const session of Object.values(this.state.sessions)) {
+      visitor(session);
+    }
+  }
+
   getSession(sessionId) {
     const session = this.state.sessions[sessionId];
     if (!session) return null;

@@ -95,6 +95,126 @@ test('uploads sweep deletes only old files that no session references', async ()
   }
 });
 
+test('uploads sweep keeps a file referenced through a relative path', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-relative-test-'));
+  const uploadDir = path.join(dir, 'uploads');
+  await fs.mkdir(uploadDir, { recursive: true });
+  const store = new StateStore(path.join(dir, 'state.json'), { saveDebounceMs: 5 });
+  await store.load();
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const imagePath = path.join(uploadDir, 'relative.png');
+  await fs.writeFile(imagePath, 'bytes');
+  await fs.utimes(imagePath, old, old);
+  try {
+    await store.upsertSession({
+      session_id: 'session_relative',
+      thread_id: 'session_relative',
+      title: 'relative',
+      cwd: dir,
+      backend: 'mock',
+      active: true,
+    });
+    // Same file, spelled relative to the workspace instead of absolute.
+    await store.appendEvent('session_relative', {
+      type: 'event',
+      event: 'turn/input',
+      session_id: 'session_relative',
+      payload: { text: 'look', input: [{ type: 'localImage', path: 'uploads/relative.png' }] },
+    });
+
+    const result = await sweepSessionUploads(store, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+    assert.deepEqual(result, { removed: 0, kept: 1 });
+    assert.equal(await fs.stat(imagePath).then(() => true), true);
+  } finally {
+    await store.flush();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('uploads sweep does not follow symlinks out of the uploads directory', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-symlink-test-'));
+  const uploadDir = path.join(dir, 'uploads');
+  await fs.mkdir(uploadDir, { recursive: true });
+  const store = new StateStore(path.join(dir, 'state.json'), { saveDebounceMs: 5 });
+  await store.load();
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const targetPath = path.join(dir, 'keep-me.png');
+  const linkPath = path.join(uploadDir, 'stale-link.png');
+  await fs.writeFile(targetPath, 'outside');
+  await fs.symlink(targetPath, linkPath);
+  await fs.lutimes(linkPath, old, old);
+  try {
+    const result = await sweepSessionUploads(store, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+    assert.deepEqual(result, { removed: 1, kept: 0 });
+    await assert.rejects(() => fs.lstat(linkPath), /ENOENT/, 'the link itself is removed');
+    assert.equal(await fs.stat(targetPath).then(() => true), true, 'the target is untouched');
+  } finally {
+    await store.flush();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('uploads sweep keeps a file that sits exactly on the TTL boundary', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-ttl-test-'));
+  const uploadDir = path.join(dir, 'uploads');
+  await fs.mkdir(uploadDir, { recursive: true });
+  const store = new StateStore(path.join(dir, 'state.json'), { saveDebounceMs: 5 });
+  await store.load();
+  const filePath = path.join(uploadDir, 'boundary.png');
+  await fs.writeFile(filePath, 'bytes');
+  const maxAgeMs = 7 * 24 * 60 * 60 * 1000;
+  const old = new Date(Date.now() - maxAgeMs);
+  await fs.utimes(filePath, old, old);
+  try {
+    const stat = await fs.stat(filePath);
+    const result = await sweepSessionUploads(store, { maxAgeMs, now: stat.mtimeMs + maxAgeMs });
+    assert.deepEqual(result, { removed: 0, kept: 1 });
+    assert.equal(await fs.stat(filePath).then(() => true), true);
+  } finally {
+    await store.flush();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('uploads sweep scans sessions without cloning them', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-scan-test-'));
+  const uploadDir = path.join(dir, 'uploads');
+  await fs.mkdir(uploadDir, { recursive: true });
+  const store = new StateStore(path.join(dir, 'state.json'), { saveDebounceMs: 5 });
+  await store.load();
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const orphanPath = path.join(uploadDir, 'orphan.png');
+  await fs.writeFile(orphanPath, 'bytes');
+  await fs.utimes(orphanPath, old, old);
+  // A deep clone + freeze of every session on the event loop is what this
+  // sweep must not do.
+  store.listSessions = () => {
+    throw new Error('sweep must not use listSessions()');
+  };
+  try {
+    const result = await sweepSessionUploads(store, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+    assert.deepEqual(result, { removed: 1, kept: 0 });
+  } finally {
+    await store.flush();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('uploads sweep counts every directory entry once', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-count-test-'));
+  const uploadDir = path.join(dir, 'uploads');
+  await fs.mkdir(path.join(uploadDir, 'nested'), { recursive: true });
+  const store = new StateStore(path.join(dir, 'state.json'), { saveDebounceMs: 5 });
+  await store.load();
+  try {
+    const result = await sweepSessionUploads(store, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+    assert.deepEqual(result, { removed: 0, kept: 1 }, 'a subdirectory is kept, not ignored');
+  } finally {
+    await store.flush();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('uploads sweep keeps everything when the uploads directory is missing', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-empty-test-'));
   const store = new StateStore(path.join(dir, 'state.json'));

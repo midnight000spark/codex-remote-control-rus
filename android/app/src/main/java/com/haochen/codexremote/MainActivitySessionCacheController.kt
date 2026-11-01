@@ -96,6 +96,44 @@ internal fun MainActivity.applyCachedSessionContent(sessionId: String): Boolean 
     val payload = sessionContentCache[sessionId] ?: readSessionContentCache(sessionId)
         ?.also { sessionContentCache[sessionId] = it }
         ?: return false
+    return applyCachedSessionPayload(sessionId, payload)
+}
+
+/**
+ * Shows cached history for a session the user just opened. The payload is read
+ * and parsed off the main thread unless it is already in memory, and the result
+ * is dropped when a fresher snapshot or another session selection won the race.
+ */
+internal fun MainActivity.scheduleCachedSessionContentApply(
+    sessionId: String,
+    onApplied: (Boolean) -> Unit = {},
+) {
+    sessionContentCache[sessionId]?.let { payload ->
+        onApplied(applyCachedSessionPayload(sessionId, payload))
+        return
+    }
+    val cacheKey = activeSessionCacheKey
+    val expectedVersion = conversationSnapshotVersion
+    val expectedSeq = lastSyncedSeq
+    cacheReadExecutor.execute {
+        val payload = readSessionContentCacheAt(cacheKey, sessionId)
+        mainHandler.post {
+            val stillCurrent = payload != null &&
+                activeSessionId == sessionId &&
+                activeSessionCacheKey == cacheKey &&
+                conversationSnapshotVersion == expectedVersion &&
+                lastSyncedSeq == expectedSeq
+            if (!stillCurrent) {
+                onApplied(false)
+                return@post
+            }
+            sessionContentCache[sessionId] = payload!!
+            onApplied(applyCachedSessionPayload(sessionId, payload))
+        }
+    }
+}
+
+private fun MainActivity.applyCachedSessionPayload(sessionId: String, payload: JSONObject): Boolean {
     payload.optJSONObject("session")?.let(SessionInfo::fromSession)?.let(::upsertSessionFromCache)
     sessionContentCacheSignatures[sessionId] = buildSessionContentCacheSignature(payload)
     applySessionContentSnapshot(JSONObject(payload.toString()))
@@ -244,9 +282,10 @@ private fun MainActivity.readConnectionCache(cacheKey: String?): JSONObject? {
 }
 
 private fun MainActivity.readSessionCacheRoot(): JSONObject? {
+    sessionCacheRootMemory?.let { return it }
     val file = sessionCacheFile()
     if (!file.exists()) return null
-    return try {
+    val loaded = try {
         JSONObject(file.readText()).takeIf { root ->
             root.optInt("version", 0) == SESSION_CACHE_VERSION
         }
@@ -255,19 +294,18 @@ private fun MainActivity.readSessionCacheRoot(): JSONObject? {
     } catch (_: Exception) {
         null
     }
+    sessionCacheRootMemory = loaded
+    return loaded
 }
 
 private fun MainActivity.writeSessionCacheRoot(root: JSONObject) {
-    try {
-        val file = sessionCacheFile()
-        file.parentFile?.mkdirs()
-        file.writeText(root.toString())
-    } catch (_: Exception) {
-        // Cache failures should not affect the bridge connection or chat flow.
-    }
+    sessionCacheRootMemory = root
+    sessionCacheWriter.submit(sessionCacheFile()) { root.toString() }
 }
 
 private fun MainActivity.deleteAllSessionCacheFiles() {
+    sessionCacheRootMemory = null
+    sessionCacheWriter.clearPending()
     filesDir.listFiles()
         ?.filter { file ->
             file.name == SESSION_CACHE_FILE ||
@@ -277,6 +315,7 @@ private fun MainActivity.deleteAllSessionCacheFiles() {
 }
 
 private fun MainActivity.deleteSessionCacheEntry(cacheKey: String) {
+    sessionCacheWriter.clearPending()
     val root = readSessionCacheRoot()
     val connections = root?.optJSONObject("connections")
     connections?.remove(cacheKey)
@@ -316,8 +355,11 @@ private fun MainActivity.sessionCacheReloadKey(fallback: String? = null): String
 
 private fun MainActivity.sessionCacheFile(): File = File(filesDir, SESSION_CACHE_FILE)
 
-private fun MainActivity.readSessionContentCache(sessionId: String): JSONObject? {
-    val file = sessionContentCacheFile(activeSessionCacheKey, sessionId)
+private fun MainActivity.readSessionContentCache(sessionId: String): JSONObject? =
+    readSessionContentCacheAt(activeSessionCacheKey, sessionId)
+
+private fun MainActivity.readSessionContentCacheAt(cacheKey: String?, sessionId: String): JSONObject? {
+    val file = sessionContentCacheFile(cacheKey, sessionId)
     if (!file.exists()) return null
     return try {
         JSONObject(file.readText())
@@ -330,14 +372,8 @@ private fun MainActivity.readSessionContentCache(sessionId: String): JSONObject?
 
 private fun MainActivity.writeSessionContentCache(sessionId: String, payload: JSONObject) {
     val file = sessionContentCacheFile(activeSessionCacheKey, sessionId)
-    Thread {
-        try {
-            file.parentFile?.mkdirs()
-            file.writeText(payload.toString())
-        } catch (_: Exception) {
-            // Cache failures should not affect the bridge connection or chat flow.
-        }
-    }.start()
+    // Serialization runs on the writer thread; payload is not mutated afterwards.
+    sessionCacheWriter.submit(file) { payload.toString() }
 }
 
 private fun MainActivity.sessionContentCacheFile(cacheKey: String?, sessionId: String): File {

@@ -80,6 +80,12 @@ class MainActivity : ComponentActivity() {
         Thread(runnable, "bridge-protocol-parse").apply { isDaemon = true }
     }
     internal var bridgeConnectionGeneration = 0
+    internal val sessionCacheWriter = SessionCacheWriter()
+    internal val cacheReadExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "session-cache-read").apply { isDaemon = true }
+    }
+    internal var conversationSnapshotVersion = 0
+    internal var sessionCacheRootMemory: JSONObject? = null
     internal var liveTurnStatusPending: String? = null
     internal var liveTurnStatusFlushRunnable: Runnable? = null
     internal val pendingRequests = mutableMapOf<String, ResponseHandler>()
@@ -280,6 +286,8 @@ class MainActivity : ComponentActivity() {
         stopSessionSyncLoop()
         cancelReconnectSchedule(resetAttempt = false)
         protocolParseExecutor.shutdownNow()
+        sessionCacheWriter.shutdown()
+        cacheReadExecutor.shutdownNow()
         noticeToast?.cancel()
         noticeToast = null
         bridgeClient?.let {

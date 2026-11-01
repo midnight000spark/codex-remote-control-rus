@@ -376,6 +376,7 @@ internal fun MainActivity.applySessionContentSnapshot(payload: JSONObject?, snap
 
         conversationItems.clear()
         conversationItems.addAll(resolvedSnapshotItems)
+        conversationSnapshotVersion += 1
         replacePendingApprovals(snapshotApprovals)
         syncDebugLog { "session.content apply replaced items=${conversationItems.size} approvals=${pendingApprovals.size}" }
 
@@ -450,17 +451,16 @@ internal fun MainActivity.selectSession(sessionId: String, syncHistory: Boolean)
             requestActiveGoal(sessionId)
         }
 
-        val restoredCachedContent =
-            if (keepCurrentConversation) {
-                false
-            } else {
-                applyCachedSessionContent(sessionId).also { restored ->
-                    if (restored) {
-                        chatRestoreScrollY = Int.MAX_VALUE
-                    }
+        if (!keepCurrentConversation) {
+            // Cache reads and parsing stay off the main thread; a newer snapshot
+            // or another selection cancels the result.
+            scheduleCachedSessionContentApply(sessionId) { restored ->
+                if (restored) {
+                    chatRestoreScrollY = Int.MAX_VALUE
                 }
             }
-        syncDebugLog { "session.select sessionId=$sessionId syncHistory=$syncHistory connected=$connected keepCurrent=$keepCurrentConversation restoredCache=$restoredCachedContent cursorReady=$sessionSyncCursorReady lastSyncedSeq=$lastSyncedSeq" }
+        }
+        syncDebugLog { "session.select sessionId=$sessionId syncHistory=$syncHistory connected=$connected keepCurrent=$keepCurrentConversation cacheApply=scheduled cursorReady=$sessionSyncCursorReady lastSyncedSeq=$lastSyncedSeq" }
 
         if (syncHistory && connected) {
             requestSessionRefresh(sessionId)
@@ -504,6 +504,7 @@ internal fun MainActivity.clearConversation() {
         chatRestoreScrollY = null
         codeBrowserState = null
         lastSyncedSeq = 0
+        conversationSnapshotVersion += 1
         sessionSyncCursorReady = false
         lastSnapshotSignature = null
         lastSnapshotItemCount = 0

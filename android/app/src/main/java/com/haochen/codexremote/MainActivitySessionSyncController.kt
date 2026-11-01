@@ -171,6 +171,7 @@ internal fun MainActivity.applySessionSyncSnapshot(payload: JSONObject, changedT
 
         conversationItems.clear()
         conversationItems.addAll(nextItems)
+        conversationSnapshotVersion += 1
         replacePendingApprovals(snapshotApprovals)
         rebuildConversationIndexes(nextItems)
 

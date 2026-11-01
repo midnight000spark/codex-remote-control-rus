@@ -51,9 +51,12 @@ WebSocket stack doing that. The bridge also answers client `ping` messages with
 a `pong` response.
 
 The bridge never lets a slow client buffer the whole session history: if a
-socket accumulates more than 4 MiB of unsent frames it is closed with code
-`1009` (`client too slow`). Reconnect and re-sync with `session.sync` instead of
-expecting that socket to recover.
+socket would accumulate more than 4 MiB of unsent frames it is closed with code
+`1009` (`client too slow`). The limit covers every frame the bridge sends,
+including request responses such as `session.content`, not just events. A peer
+that does not complete the close handshake is terminated after a short grace
+period. Reconnect and re-sync with `session.sync` instead of expecting that
+socket to recover.
 
 ## Message Envelope
 

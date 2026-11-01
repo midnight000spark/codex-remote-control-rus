@@ -6,6 +6,7 @@ import android.content.Context
 import java.io.IOException
 import java.net.URI
 import java.util.UUID
+import kotlin.random.Random
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -775,13 +776,12 @@ internal fun MainActivity.cancelReconnectSchedule(resetAttempt: Boolean) {
     }
 
 internal fun MainActivity.reconnectDelayMillis(attempt: Int): Long {
-        return when {
-            attempt <= 1 -> 2_000L
-            attempt == 2 -> 4_000L
-            attempt == 3 -> 8_000L
-            attempt == 4 -> 15_000L
-            else -> 30_000L
-        }
+        // Exponential backoff, 1s doubling to a 30s cap, with +/-30% jitter so
+        // several clients do not reconnect in lockstep after a bridge restart.
+        val exponent = (attempt - 1).coerceIn(0, 5)
+        val base = (1_000L shl exponent).coerceAtMost(RECONNECT_DELAY_CAP_MS)
+        val jittered = base * (1.0 + Random.nextDouble(-RECONNECT_JITTER_RATIO, RECONNECT_JITTER_RATIO))
+        return jittered.toLong().coerceIn(500L, RECONNECT_DELAY_CAP_MS)
     }
 
 internal fun MainActivity.shouldScheduleReconnect(targetUrl: String?): Boolean {

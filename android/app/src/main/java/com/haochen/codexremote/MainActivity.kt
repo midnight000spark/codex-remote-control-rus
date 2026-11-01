@@ -52,12 +52,14 @@ internal const val MAX_CONNECTION_HISTORY = 8
 internal const val PROJECT_GROUP_DEFAULT_VISIBLE_SESSIONS = 8
 internal const val CODE_BROWSER_FILE_CACHE_SIZE = 24
 internal const val CODE_BROWSER_RENDER_CACHE_SIZE = 16
-internal const val DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS = 3
+internal const val DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS = 8
 internal const val DEFAULT_BRIDGE_PING_INTERVAL_SECONDS = 20
 internal const val DEFAULT_SESSION_HISTORY_MONTHS = 0
 internal const val DEFAULT_SESSION_SYNC_INTERVAL_SECONDS = 5
 internal const val INVALID_FRAME_PREVIEW_CHARS = 200
 internal const val PENDING_REQUEST_TIMEOUT_MS = 30_000L
+internal const val RECONNECT_DELAY_CAP_MS = 30_000L
+internal const val RECONNECT_JITTER_RATIO = 0.3
 internal const val RENDERED_EVENT_KEYS_LIMIT = 5000
 internal const val LIVE_TURN_STATUS_COALESCE_MS = 200L
 
@@ -171,7 +173,7 @@ class MainActivity : ComponentActivity() {
     internal var sessionContentDirty = false
     internal var lastSnapshotSignature: String? = null
     internal var lastSnapshotItemCount = 0
-    internal var autoReconnectEnabled by mutableStateOf(false)
+    internal var autoReconnectEnabled by mutableStateOf(true)
     internal var autoReconnectMaxAttempts by mutableStateOf(0)
     internal var startupPagePreference by mutableStateOf(AppPage.Chat)
     internal var sessionHistoryMonths by mutableStateOf(DEFAULT_SESSION_HISTORY_MONTHS)
@@ -233,7 +235,7 @@ class MainActivity : ComponentActivity() {
         selectedReasoningEffort = prefs.getString(KEY_CHAT_REASONING_EFFORT, "")?.trim().orEmpty()
         selectedReasoningSummary = normalizeReasoningSummary(prefs.getString(KEY_CHAT_REASONING_SUMMARY, "auto"))
         selectedSandbox = normalizeSandboxPreference(prefs.getString(KEY_CHAT_SANDBOX, "workspaceWrite"))
-        autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
+        autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, true)
         autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
         startupPagePreference = loadStartupPagePreference()
         sessionHistoryMonths = loadSessionHistoryMonths()

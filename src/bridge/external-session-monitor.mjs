@@ -183,60 +183,74 @@ export class ExternalSessionMonitor {
     }
 
     for (const summary of sessions) {
-      const sessionId = summary.session_id;
-      const previous = this.snapshots.get(sessionId) ?? null;
-      const current = await buildSnapshot(summary);
-      if (previous?.rolloutPath === current.rolloutPath) {
-        current.rolloutCursor = previous.rolloutCursor ?? null;
+      // One broken session must not stall the rest: Codex rotates rollout files
+      // between the stat and the read, and that ENOENT used to reject the whole
+      // poll. Global failures are still reported through #schedule's catch.
+      try {
+        await this.#syncSession(summary);
+      } catch (error) {
+        this.logSync('external_monitor.session.error', {
+          session_id: summary?.session_id ?? '',
+          message: error?.message ?? String(error),
+        });
       }
-      if (previous?.fingerprint === current.fingerprint) continue;
-
-      const stored = this.store.getSession(sessionId);
-      await this.store.upsertSession(mergeMonitorSummary(summary, stored));
-      const sinceSeq = this.store.getLastSeq(sessionId);
-      const changedRollout = previous?.rolloutPath
-        && previous.rolloutPath === current.rolloutPath
-        && Number.isFinite(previous.rolloutSize)
-        && Number.isFinite(current.rolloutSize)
-        && previous.rolloutSize !== current.rolloutSize;
-      const rolloutAfterBytes = changedRollout
-        ? (current.rolloutSize >= previous.rolloutSize ? previous.rolloutSize : 0)
-        : null;
-      let hydratedEvents = null;
-      if (changedRollout) {
-        const cursor = current.rolloutSize < previous.rolloutSize
-          ? await createRolloutEventCursor(current.rolloutPath, 0)
-          : previous.rolloutCursor
-            ?? await createRolloutEventCursor(previous.rolloutPath, previous.rolloutSize);
-        const incremental = await readRolloutEventsFromCursor(
-          sessionId,
-          current.rolloutPath,
-          summary.thread_id ?? sessionId,
-          cursor,
-          current.rolloutSize,
-        );
-        current.rolloutCursor = incremental.cursor;
-        hydratedEvents = incremental.events;
-      }
-      const refresh = await this.sessionContent.refreshSessionHistory(sessionId, sinceSeq, {
-        ...(hydratedEvents != null ? { hydratedEvents } : {}),
-        forceRead: true,
-        includeTailCompletion: true,
-      });
-      if (!refresh.ok) continue;
-
-      this.snapshots.set(sessionId, current);
-      if (refresh.events.length > 0) {
-        await this.onEvents(sessionId, refresh.events);
-      }
-      this.logSync('external_monitor.session_changed', {
-        session_id: sessionId,
-        new_session: previous == null,
-        rollout_after_bytes: rolloutAfterBytes,
-        appended: refresh.appended,
-        skipped: refresh.skipped,
-        last_seq: refresh.lastSeq,
-      });
     }
+  }
+
+  async #syncSession(summary) {
+    const sessionId = summary.session_id;
+    const previous = this.snapshots.get(sessionId) ?? null;
+    const current = await buildSnapshot(summary);
+    if (previous?.rolloutPath === current.rolloutPath) {
+      current.rolloutCursor = previous.rolloutCursor ?? null;
+    }
+    if (previous?.fingerprint === current.fingerprint) return;
+
+    const stored = this.store.getSession(sessionId);
+    await this.store.upsertSession(mergeMonitorSummary(summary, stored));
+    const sinceSeq = this.store.getLastSeq(sessionId);
+    const changedRollout = previous?.rolloutPath
+      && previous.rolloutPath === current.rolloutPath
+      && Number.isFinite(previous.rolloutSize)
+      && Number.isFinite(current.rolloutSize)
+      && previous.rolloutSize !== current.rolloutSize;
+    const rolloutAfterBytes = changedRollout
+      ? (current.rolloutSize >= previous.rolloutSize ? previous.rolloutSize : 0)
+      : null;
+    let hydratedEvents = null;
+    if (changedRollout) {
+      const cursor = current.rolloutSize < previous.rolloutSize
+        ? await createRolloutEventCursor(current.rolloutPath, 0)
+        : previous.rolloutCursor
+          ?? await createRolloutEventCursor(previous.rolloutPath, previous.rolloutSize);
+      const incremental = await readRolloutEventsFromCursor(
+        sessionId,
+        current.rolloutPath,
+        summary.thread_id ?? sessionId,
+        cursor,
+        current.rolloutSize,
+      );
+      current.rolloutCursor = incremental.cursor;
+      hydratedEvents = incremental.events;
+    }
+    const refresh = await this.sessionContent.refreshSessionHistory(sessionId, sinceSeq, {
+      ...(hydratedEvents != null ? { hydratedEvents } : {}),
+      forceRead: true,
+      includeTailCompletion: true,
+    });
+    if (!refresh.ok) return;
+
+    this.snapshots.set(sessionId, current);
+    if (refresh.events.length > 0) {
+      await this.onEvents(sessionId, refresh.events);
+    }
+    this.logSync('external_monitor.session_changed', {
+      session_id: sessionId,
+      new_session: previous == null,
+      rollout_after_bytes: rolloutAfterBytes,
+      appended: refresh.appended,
+      skipped: refresh.skipped,
+      last_seq: refresh.lastSeq,
+    });
   }
 }

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { EventEmitter, once } from 'node:events';
 import WebSocket from 'ws';
 import { BridgeServer } from '../src/bridge-server.mjs';
-import { externalMonitorBackoffMs } from '../src/bridge/external-session-monitor.mjs';
+import { externalMonitorBackoffMs, ExternalSessionMonitor } from '../src/bridge/external-session-monitor.mjs';
 import {
   createRolloutEventCursor,
   readRolloutEventsFromCursor,
@@ -316,6 +316,70 @@ test('rollout monitor does not rebroadcast events already received in realtime',
       await once(ws, 'close');
     }
     await bridge.stop();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a session that throws mid-poll does not stall the other sessions', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-monitor-isolation-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  await store.load();
+
+  let updatedAt = 1_770_000_000;
+  // Broken first on purpose: without per-session isolation the rejection stops
+  // the loop before the healthy session is reached.
+  const threads = [
+    { id: 'thread_broken', preview: 'broken', updatedAt },
+    { id: 'thread_ok', preview: 'ok', updatedAt },
+  ];
+  const logged = [];
+  const refreshed = [];
+  const monitor = new ExternalSessionMonitor({
+    backend: {
+      listThreads: async () => threads.map((thread) => ({ ...thread })),
+    },
+    store,
+    sessionContent: {
+      refreshSessionHistory: async (sessionId) => {
+        refreshed.push(sessionId);
+        if (sessionId === 'thread_broken') {
+          // Codex rotated the rollout between the stat and the read.
+          throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+        }
+        return { ok: true, events: [], appended: 0, skipped: 0, lastSeq: 0 };
+      },
+    },
+    intervalMs: 20,
+    limit: 10,
+    logSync: (event, details) => logged.push({ event, details }),
+  });
+
+  try {
+    monitor.start();
+    await waitFor(() => monitor.initialized);
+
+    // Change the fingerprint so the incremental branch runs on the next poll.
+    updatedAt += 60;
+    for (const thread of threads) thread.updatedAt = updatedAt;
+
+    await waitFor(() => refreshed.includes('thread_ok'));
+
+    assert.ok(refreshed.includes('thread_broken'), 'the broken session was attempted');
+    assert.equal(monitor.snapshots.has('thread_ok'), true, 'the healthy session was synced');
+    assert.equal(monitor.failureCount, 0, 'a per-session error is not a global failure');
+    assert.equal(monitor.running, true);
+    assert.equal(
+      logged.filter((entry) => entry.event === 'external_monitor.poll.error').length,
+      0,
+      'the poll itself did not fail',
+    );
+    assert.ok(logged.some(
+      (entry) => entry.event === 'external_monitor.session.error'
+        && entry.details.session_id === 'thread_broken',
+    ));
+  } finally {
+    monitor.stop();
+    await store.flush();
     await fs.rm(dir, { recursive: true, force: true });
   }
 });

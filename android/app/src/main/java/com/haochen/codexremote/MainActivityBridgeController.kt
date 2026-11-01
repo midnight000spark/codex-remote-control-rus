@@ -234,6 +234,9 @@ internal fun MainActivity.connectToBridge(
                                 showCachedHistoryAfterConnectionFailure()
                             }
                             connectionDetail = buildReconnectExhaustedDetail(normalizedReason)
+                            // This is the one-shot event of the outage: retries
+                            // are over (or were never scheduled), so say it once.
+                            showNotice(connectionDetail)
                         }
                         disconnectRequested = false
                     }

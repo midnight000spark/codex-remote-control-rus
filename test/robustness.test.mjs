@@ -375,6 +375,28 @@ test('heartbeat terminates a connection that stopped answering pings', async () 
   }
 });
 
+test('the bridge reports the package version', async () => {
+  const pkg = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const { bridge, cleanup } = await createHarness();
+  let client = null;
+  try {
+    const health = await fetch(`http://127.0.0.1:${bridge.address().port}/healthz`);
+    assert.equal(health.status, 200);
+    assert.equal((await health.json()).version, pkg.version);
+
+    client = new WebSocket(`ws://127.0.0.1:${bridge.address().port}/?token=test-token`);
+    const hello = await withTimeout(new Promise((resolve, reject) => {
+      client.once('message', (buffer) => resolve(JSON.parse(buffer.toString('utf8'))));
+      client.once('error', reject);
+    }));
+    assert.equal(hello.type, 'hello');
+    assert.equal(hello.payload.version, pkg.version);
+  } finally {
+    client?.terminate();
+    await cleanup();
+  }
+});
+
 test('a pong marks the connection alive again', async () => {
   const { bridge, cleanup } = await createHarness();
   let client = null;

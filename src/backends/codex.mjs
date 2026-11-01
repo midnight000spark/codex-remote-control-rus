@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { nowIso } from '../protocol.mjs';
+import { PACKAGE_VERSION } from '../version.mjs';
 
 function parseJsonLine(line) {
   try {
@@ -21,7 +22,7 @@ export class CodexBackend extends EventEmitter {
     experimental = true,
     requestTimeoutMs = 30000,
     clientName = 'codex-remote-control',
-    clientVersion = '0.2.0',
+    clientVersion = PACKAGE_VERSION,
     protocolLogPath = null,
   } = {}) {
     super();

@@ -38,6 +38,13 @@ The bridge is designed for a private overlay network such as Tailscale.
 - Relative paths are resolved from the session `cwd`. A session without a `cwd` accepts absolute paths
   only.
 
+## Uploads
+
+Uploaded images are written to `<state dir>/uploads`. The bridge removes files
+there that no stored session references once they are older than 7 days, both at
+startup and every 6 hours. Files referenced by a stored session are kept
+regardless of age.
+
 ## Approvals
 
 Approval responses are forwarded only for a request id that is currently pending for that session, and

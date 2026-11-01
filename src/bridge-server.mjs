@@ -23,6 +23,7 @@ import {
   readSessionFile,
   readSessionImage,
   writeSessionImageUpload,
+  sweepSessionUploads,
   clampMaxBytes,
 } from './bridge/file-reader.mjs';
 import { listDirectories } from './bridge/directory-reader.mjs';
@@ -43,6 +44,8 @@ import {
   summarizeSyncEntries,
   syncItemTypeCounts,
 } from './bridge/sync-log.mjs';
+
+const UPLOADS_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 // Never persist the bridge token in sync logs.
 function redactTokenFromUrl(rawUrl) {
@@ -158,6 +161,7 @@ export class BridgeServer extends EventEmitter {
     this.httpServer = null;
     this.wsServer = null;
     this.connections = new Set();
+    this.uploadsSweepTimer = null;
     this.backendListener = (message) => {
       this.#handleBackendMessage(message).catch((error) => {
         this.#logSync('backend.message.error', {
@@ -236,11 +240,31 @@ export class BridgeServer extends EventEmitter {
       this.httpServer.listen(this.port, this.host, resolve);
     });
 
+    this.#sweepUploads();
+    this.uploadsSweepTimer = setInterval(() => this.#sweepUploads(), UPLOADS_SWEEP_INTERVAL_MS);
+    this.uploadsSweepTimer.unref?.();
+
     return this;
+  }
+
+  #sweepUploads() {
+    sweepSessionUploads(this.store)
+      .then((result) => {
+        if (result.removed > 0) {
+          this.#logSync('uploads.swept', { removed: result.removed, kept: result.kept });
+        }
+      })
+      .catch((error) => {
+        this.#logSync('uploads.sweep.error', { message: error?.message ?? String(error) });
+      });
   }
 
   async stop() {
     this.backend.off('message', this.backendListener);
+    if (this.uploadsSweepTimer) {
+      clearInterval(this.uploadsSweepTimer);
+      this.uploadsSweepTimer = null;
+    }
     this.externalSessionMonitor.stop();
     for (const ws of this.connections) {
       try {

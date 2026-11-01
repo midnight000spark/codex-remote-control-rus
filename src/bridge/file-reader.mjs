@@ -220,6 +220,54 @@ async function realpathOrResolve(value) {
   }
 }
 
+export const DEFAULT_UPLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Uploaded images are copied into the bridge state directory and referenced by
+// absolute path from the conversation, so nothing ever deletes them. Sweep the
+// ones that no stored session mentions any more and that are older than the
+// TTL; referenced files are always kept.
+export async function sweepSessionUploads(store, { maxAgeMs = DEFAULT_UPLOAD_TTL_MS, now = Date.now() } = {}) {
+  const uploadDir = path.join(path.dirname(store.filePath), 'uploads');
+  let entries;
+  try {
+    entries = await fs.readdir(uploadDir, { withFileTypes: true });
+  } catch {
+    return { removed: 0, kept: 0 };
+  }
+
+  let references = '';
+  try {
+    references = JSON.stringify(store.listSessions());
+  } catch {
+    // If the sessions cannot be read, keep everything rather than risk deleting
+    // an image that is still on screen.
+    return { removed: 0, kept: entries.length };
+  }
+
+  let removed = 0;
+  let kept = 0;
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const filePath = path.join(uploadDir, entry.name);
+    if (references.includes(filePath) || references.includes(path.resolve(filePath))) {
+      kept += 1;
+      continue;
+    }
+    try {
+      const stat = await fs.stat(filePath);
+      if (now - stat.mtimeMs < maxAgeMs) {
+        kept += 1;
+        continue;
+      }
+      await fs.unlink(filePath);
+      removed += 1;
+    } catch {
+      kept += 1;
+    }
+  }
+  return { removed, kept };
+}
+
 // Reads are confined to the session workspace plus the bridge-managed upload
 // directory (where writeSessionImageUpload stores client uploads).
 function allowedReadRoots(store, cwd) {

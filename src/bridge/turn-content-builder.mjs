@@ -9,8 +9,6 @@ import {
 import { SYNC_LOG_EVENT_LIMIT, summarizeSyncEntries, syncItemTypeCounts } from './sync-log.mjs';
 import {
   eventDedupeSignatures,
-  eventSignature,
-  mergeInitialSessionEvents,
   pruneHydratedEvents,
 } from './session-event-signature.mjs';
 import { readRolloutMessageTimestamps } from './rollout-history.mjs';
@@ -832,16 +830,8 @@ export class TurnContentBuilder {
     }
   }
 
-  mergeInitialSessionEvents(hydratedEvents, storedEvents) {
-    return mergeInitialSessionEvents(hydratedEvents, storedEvents);
-  }
-
   pruneHydratedEvents(hydratedEvents, storedEvents) {
     return pruneHydratedEvents(hydratedEvents, storedEvents);
-  }
-
-  eventSignature(event) {
-    return eventSignature(event);
   }
 
   eventDedupeSignatures(event) {

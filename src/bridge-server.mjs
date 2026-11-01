@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -44,6 +45,10 @@ import {
   summarizeSyncEntries,
   syncItemTypeCounts,
 } from './bridge/sync-log.mjs';
+
+// The hello payload must not drift from the published package version.
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../package.json');
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // A client that cannot keep up is closed instead of letting its socket buffer
@@ -145,7 +150,7 @@ export class BridgeServer extends EventEmitter {
     token = null,
     bridgeId = null,
     name = 'codex-remote-control',
-    version = '0.2.0',
+    version = PACKAGE_VERSION,
     syncLogPath = null,
     allowUnauthenticated = false,
     heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,

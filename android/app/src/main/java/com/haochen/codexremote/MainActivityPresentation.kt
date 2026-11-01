@@ -4,23 +4,6 @@ import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal fun MainActivity.currentSessionLabel(): String {
-        val sessionId = activeSessionId ?: return "Сессия не выбрана"
-        val info = sessions.firstOrNull { it.sessionId == sessionId }
-        return if (info != null) {
-            "Текущая сессия: ${info.titleLine()}"
-        } else {
-            "Текущая сессия: ${shortId(sessionId)}"
-        }
-    }
-
-internal fun MainActivity.buildStatusLine(): String {
-        val parts = mutableListOf(if (connected) "Подключено" else "Не подключено")
-        activeSessionId?.let { parts.add("Сессия ${shortId(it)}") }
-        activeTurnId?.let { parts.add("Ход ${shortId(it)}") }
-        return parts.joinToString(" · ")
-    }
-
 internal fun MainActivity.connectionStatusHeadline(): String {
         val entry = currentConnectionEntry()
         if (!connected) {

@@ -147,7 +147,9 @@ function canonicalizeItemForSignature(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) {
     return item;
   }
-  const normalized = clone(item);
+  // Only top-level keys are dropped and the result is stringified right away,
+  // so a shallow copy is enough and much cheaper than a deep clone.
+  const normalized = { ...item };
   delete normalized.phase;
   delete normalized.memoryCitation;
   return normalized;

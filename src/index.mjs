@@ -8,6 +8,7 @@ import { CodexBackend } from './backends/codex.mjs';
 import { BridgeServer } from './bridge-server.mjs';
 import { resolveCodexBin } from './codex-bin-resolver.mjs';
 import { isLoopbackHost } from './bridge/common.mjs';
+import { defaultSandboxPolicy } from './bridge/session-normalization.mjs';
 
 function defaultDataDir() {
   return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'codex_remote_control');
@@ -152,6 +153,14 @@ Options:
   --codex-config KEY=VALUE repeatable
 `);
     process.exit(0);
+  }
+
+  try {
+    defaultSandboxPolicy();
+  } catch (error) {
+    console.error(`Configuration error: ${error.message}`);
+    console.error('Supported values: danger-full-access, workspace-write, read-only');
+    process.exit(1);
   }
 
   await maybeMigrateLegacyRuntimeFiles(args);

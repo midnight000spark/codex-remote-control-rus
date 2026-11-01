@@ -330,6 +330,17 @@ export function mergeMetadataIntoSession(session, metadata = {}) {
   return next;
 }
 
-export function defaultSandboxPolicy() {
-  return { type: 'dangerFullAccess' };
+export function defaultSandboxPolicy(env = process.env) {
+  const raw = env?.CODEX_REMOTE_DEFAULT_SANDBOX;
+  if (raw == null || String(raw).trim() === '') {
+    return { type: 'dangerFullAccess' };
+  }
+  const policy = normalizeSandboxPolicy(String(raw).trim());
+  if (!policy) {
+    // Do not fall back silently: a typo here would silently grant full access.
+    const error = new Error(`invalid CODEX_REMOTE_DEFAULT_SANDBOX: ${raw}`);
+    error.code = 'INVALID_DEFAULT_SANDBOX';
+    throw error;
+  }
+  return policy;
 }

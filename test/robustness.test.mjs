@@ -3,8 +3,27 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { BridgeServer } from '../src/bridge-server.mjs';
 import { StateStore } from '../src/store.mjs';
+import { MockBackend } from '../src/backends/mock.mjs';
 import { sweepSessionUploads } from '../src/bridge/file-reader.mjs';
+
+async function createHarness(options = {}) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-robustness-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: 'test-token', ...options });
+  await bridge.start();
+  const cleanup = async () => {
+    await bridge.stop().catch(() => {});
+    await fs.rm(dir, { recursive: true, force: true });
+  };
+  return { dir, store, bridge, cleanup };
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 test('uploads sweep deletes only old files that no session references', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-uploads-test-'));
@@ -59,5 +78,102 @@ test('uploads sweep keeps everything when the uploads directory is missing', asy
     assert.deepEqual(await sweepSessionUploads(store), { removed: 0, kept: 0 });
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('broadcast closes a connection whose buffer is over the limit', async () => {
+  const { bridge, cleanup } = await createHarness();
+  try {
+    const closed = [];
+    const slow = {
+      readyState: 1,
+      bufferedAmount: 5 * 1024 * 1024,
+      remoteAddress: 'slow',
+      close: (code, reason) => closed.push([code, reason]),
+      terminate: () => {},
+    };
+    const healthy = {
+      readyState: 1,
+      bufferedAmount: 0,
+      remoteAddress: 'healthy',
+      sent: [],
+      close: () => {},
+      terminate: () => {},
+      send: (data) => healthy.sent.push(data),
+    };
+    bridge.connections.add(slow);
+    bridge.connections.add(healthy);
+
+    await bridge.backendListener({ type: 'notification', method: 'turn/started', params: {} });
+
+    assert.deepEqual(closed, [[1009, 'client too slow']]);
+    assert.equal(bridge.connections.has(slow), false);
+    assert.equal(healthy.sent.length, 1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('heartbeat terminates a connection that stopped answering pings', async () => {
+  const { bridge, cleanup } = await createHarness({ heartbeatIntervalMs: 1000 });
+  try {
+    let terminated = 0;
+    let pinged = 0;
+    const dead = {
+      // isAlive === false is what the previous heartbeat tick leaves behind
+      // when the pong never arrives.
+      isAlive: false,
+      readyState: 1,
+      bufferedAmount: 0,
+      remoteAddress: 'dead',
+      ping: () => {
+        pinged += 1;
+      },
+      terminate: () => {
+        terminated += 1;
+      },
+      close: () => {},
+    };
+    bridge.connections.add(dead);
+
+    await wait(1500);
+
+    assert.equal(pinged, 0, 'a dead connection is terminated instead of pinged again');
+    assert.equal(terminated, 1);
+    assert.equal(bridge.connections.has(dead), false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('heartbeat pings a live connection on the first tick', async () => {
+  const { bridge, cleanup } = await createHarness({ heartbeatIntervalMs: 1000 });
+  try {
+    let terminated = 0;
+    let pinged = 0;
+    const alive = {
+      isAlive: true,
+      readyState: 1,
+      bufferedAmount: 0,
+      remoteAddress: 'alive',
+      ping: () => {
+        pinged += 1;
+      },
+      terminate: () => {
+        terminated += 1;
+      },
+      close: () => {},
+    };
+    bridge.connections.add(alive);
+
+    await wait(1500);
+
+    assert.equal(pinged, 1);
+    assert.equal(terminated, 0);
+    assert.equal(bridge.connections.has(alive), true);
+    // Clean up before the interval can fire again.
+    bridge.connections.delete(alive);
+  } finally {
+    await cleanup();
   }
 });

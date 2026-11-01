@@ -40,6 +40,21 @@ The first server message is a hello payload:
 }
 ```
 
+## Connection Health
+
+The bridge pings every client socket every 30 seconds. A socket that does not
+answer with a pong within one interval is terminated, so a phone that slept or
+lost its network does not stay registered as a connection.
+
+Clients should answer pings themselves; the Android client relies on the
+WebSocket stack doing that. The bridge also answers client `ping` messages with
+a `pong` response.
+
+The bridge never lets a slow client buffer the whole session history: if a
+socket accumulates more than 4 MiB of unsent frames it is closed with code
+`1009` (`client too slow`). Reconnect and re-sync with `session.sync` instead of
+expecting that socket to recover.
+
 ## Message Envelope
 
 Client requests use:

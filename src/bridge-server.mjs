@@ -45,6 +45,10 @@ import {
   syncItemTypeCounts,
 } from './bridge/sync-log.mjs';
 
+const HEARTBEAT_INTERVAL_MS = 30_000;
+// A client that cannot keep up is closed instead of letting its socket buffer
+// grow until the bridge runs out of memory.
+const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 const UPLOADS_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 // Never persist the bridge token in sync logs.
@@ -144,6 +148,7 @@ export class BridgeServer extends EventEmitter {
     version = '0.2.0',
     syncLogPath = null,
     allowUnauthenticated = false,
+    heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
     externalSessionPollIntervalMs = 5000,
     externalSessionPollLimit = 50,
   }) {
@@ -161,6 +166,8 @@ export class BridgeServer extends EventEmitter {
     this.httpServer = null;
     this.wsServer = null;
     this.connections = new Set();
+    this.heartbeatIntervalMs = Math.max(1000, Number(heartbeatIntervalMs) || HEARTBEAT_INTERVAL_MS);
+    this.heartbeatTimer = null;
     this.uploadsSweepTimer = null;
     this.backendListener = (message) => {
       this.#handleBackendMessage(message).catch((error) => {
@@ -240,11 +247,36 @@ export class BridgeServer extends EventEmitter {
       this.httpServer.listen(this.port, this.host, resolve);
     });
 
+    // Half-open sockets from a phone that slept or lost its network otherwise
+    // stay in this.connections forever, keeping the external monitor running.
+    this.heartbeatTimer = setInterval(() => this.#heartbeat(), this.heartbeatIntervalMs);
+    this.heartbeatTimer.unref?.();
+
     this.#sweepUploads();
     this.uploadsSweepTimer = setInterval(() => this.#sweepUploads(), UPLOADS_SWEEP_INTERVAL_MS);
     this.uploadsSweepTimer.unref?.();
 
     return this;
+  }
+
+  #heartbeat() {
+    for (const ws of this.connections) {
+      if (ws.isAlive === false) {
+        this.#logSync('ws.heartbeat.timeout', {
+          remote: ws.remoteAddress ?? '',
+          connections: this.connections.size,
+        });
+        this.connections.delete(ws);
+        try {
+          ws.terminate();
+        } catch {}
+        continue;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {}
+    }
   }
 
   #sweepUploads() {
@@ -261,6 +293,10 @@ export class BridgeServer extends EventEmitter {
 
   async stop() {
     this.backend.off('message', this.backendListener);
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     if (this.uploadsSweepTimer) {
       clearInterval(this.uploadsSweepTimer);
       this.uploadsSweepTimer = null;
@@ -454,6 +490,11 @@ export class BridgeServer extends EventEmitter {
       ws.close(1008, 'unauthorized');
       return;
     }
+
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
 
     this.connections.add(ws);
     if (this.connections.size === 1) {
@@ -1159,8 +1200,24 @@ export class BridgeServer extends EventEmitter {
   #broadcast(message) {
     const data = JSON.stringify(message);
     for (const ws of this.connections) {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+        // One slow client must not be able to buffer the whole session history.
+        this.#logSync('ws.backpressure.close', {
+          remote: ws.remoteAddress ?? '',
+          buffered: ws.bufferedAmount,
+          frame_bytes: Buffer.byteLength(data),
+        });
+        this.connections.delete(ws);
+        try {
+          ws.close(1009, 'client too slow');
+        } catch {}
+        continue;
+      }
+      try {
         ws.send(data);
+      } catch (error) {
+        this.#logSync('ws.send.error', { message: error?.message ?? String(error) });
       }
     }
   }

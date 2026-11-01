@@ -6,6 +6,7 @@ import path from 'node:path';
 import { BridgeServer } from '../src/bridge-server.mjs';
 import { StateStore } from '../src/store.mjs';
 import { MockBackend } from '../src/backends/mock.mjs';
+import WebSocket from 'ws';
 import { sweepSessionUploads } from '../src/bridge/file-reader.mjs';
 
 async function createHarness(options = {}) {
@@ -23,6 +24,29 @@ async function createHarness(options = {}) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(predicate, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await wait(20);
+  }
+  throw new Error('timed out waiting for condition');
+}
+
+async function withTimeout(promise, timeoutMs = 2000) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs} ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 test('uploads sweep deletes only old files that no session references', async () => {
@@ -109,6 +133,91 @@ test('broadcast closes a connection whose buffer is over the limit', async () =>
     assert.deepEqual(closed, [[1009, 'client too slow']]);
     assert.equal(bridge.connections.has(slow), false);
     assert.equal(healthy.sent.length, 1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('dropping the last client stops the monitor without waiting for the close handshake', async () => {
+  const { bridge, cleanup } = await createHarness();
+  try {
+    // A peer that never answers the close frame: the socket must not keep the
+    // external monitor polling until closeTimeout expires.
+    let closeArgs = null;
+    const mute = {
+      readyState: 1,
+      bufferedAmount: 5 * 1024 * 1024,
+      remoteAddress: 'mute',
+      close: (code, reason) => {
+        closeArgs = [code, reason];
+      },
+      terminate: () => {},
+    };
+    bridge.externalSessionMonitor.start();
+    bridge.connections.add(mute);
+
+    await bridge.backendListener({ type: 'notification', method: 'turn/started', params: {} });
+
+    assert.deepEqual(closeArgs, [1009, 'client too slow']);
+    assert.equal(bridge.connections.size, 0);
+    assert.equal(bridge.externalSessionMonitor.running, false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a large request response is dropped instead of buffered', async () => {
+  const { bridge, cleanup } = await createHarness();
+  let client = null;
+  try {
+    client = new WebSocket(`ws://127.0.0.1:${bridge.address().port}/?token=test-token`);
+    await withTimeout(new Promise((resolve, reject) => {
+      client.once('open', resolve);
+      client.once('error', reject);
+    }));
+    await waitFor(() => bridge.connections.size === 1);
+
+    // Everything below 4 MiB is fine; this socket is already at the limit, so
+    // the next frame - a plain session.list response - must not be queued.
+    const serverSocket = [...bridge.connections][0];
+    Object.defineProperty(serverSocket, 'bufferedAmount', { value: 4 * 1024 * 1024, configurable: true });
+
+    const closed = new Promise((resolve) => {
+      client.once('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
+    client.send(JSON.stringify({ id: 'bp-1', type: 'session.list', payload: {} }));
+
+    const { code, reason } = await withTimeout(closed);
+    assert.equal(code, 1009);
+    assert.equal(reason, 'client too slow');
+    assert.equal(bridge.connections.size, 0);
+    assert.equal(bridge.externalSessionMonitor.running, false);
+  } finally {
+    client?.terminate();
+    await cleanup();
+  }
+});
+
+test('a dropped socket is terminated when the peer ignores the close frame', async () => {
+  const { bridge, cleanup } = await createHarness({ dropCloseTimeoutMs: 20 });
+  try {
+    let terminated = 0;
+    const mute = {
+      readyState: 1,
+      bufferedAmount: 5 * 1024 * 1024,
+      remoteAddress: 'mute',
+      close: () => {},
+      terminate: () => {
+        terminated += 1;
+      },
+    };
+    bridge.connections.add(mute);
+
+    await bridge.backendListener({ type: 'notification', method: 'turn/started', params: {} });
+    assert.equal(terminated, 0, 'the close handshake is given a chance first');
+
+    await wait(80);
+    assert.equal(terminated, 1);
   } finally {
     await cleanup();
   }

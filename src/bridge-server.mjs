@@ -54,6 +54,9 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 // A client that cannot keep up is closed instead of letting its socket buffer
 // grow until the bridge runs out of memory.
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+// ws.close() waits closeTimeout (30 s by default) for the peer's close frame.
+// A socket dropped for backpressure must not be kept alive that long.
+const DROP_CLOSE_TIMEOUT_MS = 2_000;
 const UPLOADS_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 // Never persist the bridge token in sync logs.
@@ -154,6 +157,7 @@ export class BridgeServer extends EventEmitter {
     syncLogPath = null,
     allowUnauthenticated = false,
     heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
+    dropCloseTimeoutMs = DROP_CLOSE_TIMEOUT_MS,
     externalSessionPollIntervalMs = 5000,
     externalSessionPollLimit = 50,
   }) {
@@ -172,6 +176,7 @@ export class BridgeServer extends EventEmitter {
     this.wsServer = null;
     this.connections = new Set();
     this.heartbeatIntervalMs = Math.max(1000, Number(heartbeatIntervalMs) || HEARTBEAT_INTERVAL_MS);
+    this.dropCloseTimeoutMs = Math.max(0, Number(dropCloseTimeoutMs) || DROP_CLOSE_TIMEOUT_MS);
     this.heartbeatTimer = null;
     this.uploadsSweepTimer = null;
     this.backendListener = (message) => {
@@ -271,10 +276,7 @@ export class BridgeServer extends EventEmitter {
           remote: ws.remoteAddress ?? '',
           connections: this.connections.size,
         });
-        this.connections.delete(ws);
-        try {
-          ws.terminate();
-        } catch {}
+        this.#dropConnection(ws, 1001, 'heartbeat timeout');
         continue;
       }
       ws.isAlive = false;
@@ -481,9 +483,7 @@ export class BridgeServer extends EventEmitter {
         remote: req.socket?.remoteAddress ?? '',
         message: error?.message ?? String(error),
       });
-      try {
-        ws.terminate();
-      } catch {}
+      this.#dropConnection(ws, 1001, 'socket error');
     });
     const providedToken = url.searchParams.get('token') ?? req.headers['x-bridge-token'];
     if (this.token && providedToken !== this.token) {
@@ -510,7 +510,7 @@ export class BridgeServer extends EventEmitter {
       url: redactTokenFromUrl(req.url),
       connections: this.connections.size,
     });
-    ws.send(JSON.stringify({
+    this.#send(ws, {
       type: 'hello',
       ok: true,
       payload: {
@@ -519,7 +519,7 @@ export class BridgeServer extends EventEmitter {
         bridge_id: this.bridgeId,
         server_time: nowIso(),
       },
-    }));
+    });
 
     ws.on('message', async (buffer) => {
       const raw = buffer.toString('utf8');
@@ -529,7 +529,7 @@ export class BridgeServer extends EventEmitter {
           remote: req.socket?.remoteAddress ?? '',
           bytes: Buffer.byteLength(raw),
         });
-        ws.send(JSON.stringify(createError(null, 'bad_json', 'invalid JSON')));
+        this.#send(ws, createError(null, 'bad_json', 'invalid JSON'));
         return;
       }
       try {
@@ -547,7 +547,7 @@ export class BridgeServer extends EventEmitter {
           type: parsed.value?.type ?? '',
           error: error?.message ?? String(error),
         });
-        ws.send(JSON.stringify(createError(parsed.value?.id ?? null, 'internal_error', error?.message ?? 'internal error')));
+        this.#send(ws, createError(parsed.value?.id ?? null, 'internal_error', error?.message ?? 'internal error'));
       }
     });
 
@@ -570,7 +570,7 @@ export class BridgeServer extends EventEmitter {
 
     switch (type) {
       case 'ping':
-        ws.send(JSON.stringify(createResponse(id, { pong: true }, 'pong')));
+        this.#send(ws, createResponse(id, { pong: true }, 'pong'));
         return;
       case 'session.list': {
         const historyMonths = normalizeHistoryMonths(payload.history_months ?? payload.historyMonths);
@@ -596,7 +596,7 @@ export class BridgeServer extends EventEmitter {
           .filter(Boolean)
           .filter((session) => cutoffMillis <= 0 || sessionTimestampMillis(session) >= cutoffMillis)
           .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
-        ws.send(JSON.stringify(createResponse(id, { sessions })));
+        this.#send(ws, createResponse(id, { sessions }));
         return;
       }
       case 'model.list': {
@@ -605,17 +605,17 @@ export class BridgeServer extends EventEmitter {
           : { data: [], nextCursor: null };
         const data = Array.isArray(listed) ? listed : listed?.data ?? [];
         const nextCursor = Array.isArray(listed) ? null : listed?.nextCursor ?? null;
-        ws.send(JSON.stringify(createResponse(id, { data, nextCursor })));
+        this.#send(ws, createResponse(id, { data, nextCursor }));
         return;
       }
       case 'directory.list': {
         const result = await listDirectories(payload.path);
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           path: result.resolvedPath,
           parent_path: result.parentPath,
           directories: result.directories,
           truncated: result.truncated,
-        })));
+        }));
         return;
       }
       case 'collaboration_mode.list': {
@@ -623,7 +623,7 @@ export class BridgeServer extends EventEmitter {
           ? await this.backend.listCollaborationModes(payload)
           : { data: [] };
         const data = Array.isArray(listed) ? listed : listed?.data ?? [];
-        ws.send(JSON.stringify(createResponse(id, { data })));
+        this.#send(ws, createResponse(id, { data }));
         return;
       }
       case 'session.start': {
@@ -650,7 +650,7 @@ export class BridgeServer extends EventEmitter {
         });
         const session = normalizeThreadSummary(started, backendName(this.backend));
         await this.store.upsertSession(session, { touch: true });
-        ws.send(JSON.stringify(createResponse(id, { session })));
+        this.#send(ws, createResponse(id, { session }));
         return;
       }
       case 'session.resume': {
@@ -680,14 +680,14 @@ export class BridgeServer extends EventEmitter {
           stored,
         );
         await this.store.upsertSession(session);
-        ws.send(JSON.stringify(createResponse(id, { session })));
+        this.#send(ws, createResponse(id, { session }));
         return;
       }
       case 'session.update': {
         const sessionId = payload.session_id ?? payload.thread_id;
         const current = this.store.getSession(sessionId);
         if (!current) {
-          ws.send(JSON.stringify(createError(id, 'not_found', `unknown session: ${sessionId}`)));
+          this.#send(ws, createError(id, 'not_found', `unknown session: ${sessionId}`));
           return;
         }
         const patch = {
@@ -704,7 +704,7 @@ export class BridgeServer extends EventEmitter {
             Object.prototype.hasOwnProperty.call(payload, 'sandbox') ? payload.sandbox : payload.sandboxPolicy,
           );
           if (normalizedSandbox == null) {
-            ws.send(JSON.stringify(createError(id, 'invalid_request', 'invalid sandbox')));
+            this.#send(ws, createError(id, 'invalid_request', 'invalid sandbox'));
             return;
           }
           patch.sandbox = normalizedSandbox;
@@ -712,7 +712,7 @@ export class BridgeServer extends EventEmitter {
         }
         const session = await this.store.upsertSession(patch, { touch: true });
         this.#emitSessionChanged(sessionId);
-        ws.send(JSON.stringify(createResponse(id, { session })));
+        this.#send(ws, createResponse(id, { session }));
         return;
       }
       case 'turn.send': {
@@ -824,20 +824,20 @@ export class BridgeServer extends EventEmitter {
           }
         }
         this.#emitSessionChanged(sessionId);
-        ws.send(JSON.stringify(createResponse(id, { turn: startedTurn, session_id: sessionId })));
+        this.#send(ws, createResponse(id, { turn: startedTurn, session_id: sessionId }));
         return;
       }
       case 'turn.steer': {
         const sessionId = payload.session_id ?? payload.thread_id;
         const turnId = payload.turn_id ?? payload.turnId ?? payload.expectedTurnId;
         if (!sessionId || !turnId) {
-          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id and turn_id are required')));
+          this.#send(ws, createError(id, 'invalid_request', 'session_id and turn_id are required'));
           return;
         }
 
         const session = this.store.getSession(sessionId);
         if (!session) {
-          ws.send(JSON.stringify(createError(id, 'not_found', `unknown session: ${sessionId}`)));
+          this.#send(ws, createError(id, 'not_found', `unknown session: ${sessionId}`));
           return;
         }
         const targetThreadId = payload.thread_id ?? session?.thread_id ?? sessionId;
@@ -863,10 +863,10 @@ export class BridgeServer extends EventEmitter {
           responsesapiClientMetadata: payload.responsesapiClientMetadata ?? null,
         });
         this.#emitSessionChanged(sessionId);
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           turn_id: result?.turnId ?? result?.turn_id ?? turnId,
           session_id: sessionId,
-        })));
+        }));
         return;
       }
       case 'turn.interrupt': {
@@ -876,7 +876,7 @@ export class BridgeServer extends EventEmitter {
           payload.thread_id ?? session?.thread_id ?? sessionId,
           payload.turn_id ?? payload.turnId,
         );
-        ws.send(JSON.stringify(createResponse(id, { ok: true })));
+        this.#send(ws, createResponse(id, { ok: true }));
         return;
       }
       case 'goal.get': {
@@ -884,17 +884,17 @@ export class BridgeServer extends EventEmitter {
         const session = this.store.getSession(sessionId);
         const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
         if (!threadId) {
-          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          this.#send(ws, createError(id, 'invalid_request', 'session_id or thread_id is required'));
           return;
         }
         const result = typeof this.backend.getThreadGoal === 'function'
           ? await this.backend.getThreadGoal(threadId)
           : { goal: null };
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           session_id: sessionId,
           thread_id: threadId,
           goal: result?.goal ?? null,
-        })));
+        }));
         return;
       }
       case 'goal.set': {
@@ -903,15 +903,15 @@ export class BridgeServer extends EventEmitter {
         const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
         const objective = typeof payload.objective === 'string' ? payload.objective.trim() : '';
         if (!threadId) {
-          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          this.#send(ws, createError(id, 'invalid_request', 'session_id or thread_id is required'));
           return;
         }
         if (!objective) {
-          ws.send(JSON.stringify(createError(id, 'invalid_request', 'objective is required')));
+          this.#send(ws, createError(id, 'invalid_request', 'objective is required'));
           return;
         }
         if (typeof this.backend.setThreadGoal !== 'function') {
-          ws.send(JSON.stringify(createError(id, 'unsupported', 'thread goal is not supported by this backend')));
+          this.#send(ws, createError(id, 'unsupported', 'thread goal is not supported by this backend'));
           return;
         }
         const tokenBudget = Number.isFinite(Number(payload.tokenBudget)) && Number(payload.tokenBudget) > 0
@@ -922,11 +922,11 @@ export class BridgeServer extends EventEmitter {
           status: payload.status ?? 'active',
           tokenBudget,
         });
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           session_id: sessionId,
           thread_id: threadId,
           goal: result?.goal ?? null,
-        })));
+        }));
         return;
       }
       case 'goal.clear': {
@@ -934,17 +934,17 @@ export class BridgeServer extends EventEmitter {
         const session = this.store.getSession(sessionId);
         const threadId = payload.thread_id ?? session?.thread_id ?? sessionId;
         if (!threadId) {
-          ws.send(JSON.stringify(createError(id, 'invalid_request', 'session_id or thread_id is required')));
+          this.#send(ws, createError(id, 'invalid_request', 'session_id or thread_id is required'));
           return;
         }
         const result = typeof this.backend.clearThreadGoal === 'function'
           ? await this.backend.clearThreadGoal(threadId)
           : { cleared: false };
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           session_id: sessionId,
           thread_id: threadId,
           cleared: Boolean(result?.cleared),
-        })));
+        }));
         return;
       }
       case 'approval.response': {
@@ -952,14 +952,14 @@ export class BridgeServer extends EventEmitter {
         const sessionId = payload.session_id ?? payload.thread_id;
         const pendingApproval = this.store.getPendingApproval(sessionId, clientRequestId);
         if (!pendingApproval) {
-          ws.send(JSON.stringify(createError(id, 'unknown_approval', 'no pending approval for this request id')));
+          this.#send(ws, createError(id, 'unknown_approval', 'no pending approval for this request id'));
           return;
         }
         const allowedDecisions = Array.isArray(pendingApproval.available_decisions)
           ? pendingApproval.available_decisions.filter((value) => typeof value === 'string')
           : [];
         if (payload.decision != null && allowedDecisions.length > 0 && !allowedDecisions.includes(String(payload.decision))) {
-          ws.send(JSON.stringify(createError(id, 'invalid_decision', `decision not allowed: ${payload.decision}`)));
+          this.#send(ws, createError(id, 'invalid_decision', `decision not allowed: ${payload.decision}`));
           return;
         }
         const backendRequestId = pendingApproval.backend_request_id ?? clientRequestId;
@@ -987,7 +987,7 @@ export class BridgeServer extends EventEmitter {
         });
         await this.store.resolveApproval(sessionId, clientRequestId);
         this.#emitSessionChanged(sessionId);
-        ws.send(JSON.stringify(createResponse(id, { ok: true })));
+        this.#send(ws, createResponse(id, { ok: true }));
         return;
       }
       case 'session.sync': {
@@ -1015,7 +1015,7 @@ export class BridgeServer extends EventEmitter {
           fallback_reason: sync.fallback_reason ?? '',
           entry_tail: summarizeSyncEntries(sync.entries ?? []),
         });
-        ws.send(JSON.stringify(createResponse(id, sync)));
+        this.#send(ws, createResponse(id, sync));
         return;
       }
       case 'session.content': {
@@ -1035,7 +1035,7 @@ export class BridgeServer extends EventEmitter {
           pending_approvals: content.pending_approvals?.length ?? 0,
           entry_tail: summarizeSyncEntries(content.entries ?? []),
         });
-        ws.send(JSON.stringify(createResponse(id, content)));
+        this.#send(ws, createResponse(id, content));
         return;
       }
       case 'file.read': {
@@ -1043,17 +1043,17 @@ export class BridgeServer extends EventEmitter {
         const requestedPath = String(payload.path ?? '').trim();
         const maxBytes = clampMaxBytes(payload.max_bytes);
         if (!requestedPath) {
-          ws.send(JSON.stringify(createError(id, 'invalid_path', 'path is required')));
+          this.#send(ws, createError(id, 'invalid_path', 'path is required'));
           return;
         }
         let result;
         try {
           result = await readSessionFile(this.store, sessionId, requestedPath, maxBytes);
         } catch (error) {
-          ws.send(JSON.stringify(createError(id, error?.code ?? 'file_error', error?.message ?? 'failed to read file')));
+          this.#send(ws, createError(id, error?.code ?? 'file_error', error?.message ?? 'failed to read file'));
           return;
         }
-        ws.send(JSON.stringify(createResponse(id, {
+        this.#send(ws, createResponse(id, {
           session_id: sessionId,
           path: requestedPath,
           resolved_path: result.resolvedPath,
@@ -1066,11 +1066,11 @@ export class BridgeServer extends EventEmitter {
           bytes: result.bytes,
           size: result.size,
           downloadable: result.downloadable,
-        })));
+        }));
         return;
       }
       default:
-        ws.send(JSON.stringify(createError(id, 'unknown_message', `unknown message type: ${type}`)));
+        this.#send(ws, createError(id, 'unknown_message', `unknown message type: ${type}`));
     }
   }
 
@@ -1202,28 +1202,69 @@ export class BridgeServer extends EventEmitter {
     }
   }
 
+  // Every write goes through here: the guard has to cover the large request
+  // responses (session.content, session.sync), not only broadcasts.
+  #send(ws, payload) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    const bytes = Buffer.byteLength(data);
+    // Count the frame that is about to be queued, so two large frames in a row
+    // cannot both slip under the limit.
+    if (ws.bufferedAmount + bytes > MAX_BUFFERED_BYTES) {
+      this.#dropConnection(ws, 1009, 'client too slow', {
+        buffered: ws.bufferedAmount,
+        frame_bytes: bytes,
+      });
+      return false;
+    }
+    try {
+      ws.send(data);
+      return true;
+    } catch (error) {
+      this.#logSync('ws.send.error', { message: error?.message ?? String(error) });
+      return false;
+    }
+  }
+
+  // Single removal path so the external monitor cannot keep polling for a
+  // socket that is already gone.
+  #dropConnection(ws, code, reason, extra = {}) {
+    if (!ws) return false;
+    const removed = this.connections.delete(ws);
+    if (removed) {
+      this.#logSync('ws.dropped', {
+        remote: ws.remoteAddress ?? '',
+        code,
+        reason,
+        connections: this.connections.size,
+        ...extra,
+      });
+    }
+    try {
+      if (code === 1009) {
+        ws.close(code, reason);
+        // A peer that never finishes the close handshake would otherwise keep
+        // the socket (and, before this, the monitor) alive for closeTimeout.
+        const timer = setTimeout(() => {
+          try {
+            ws.terminate();
+          } catch {}
+        }, this.dropCloseTimeoutMs);
+        timer.unref?.();
+      } else {
+        ws.terminate();
+      }
+    } catch {}
+    if (this.connections.size === 0) {
+      this.externalSessionMonitor.stop();
+    }
+    return removed;
+  }
+
   #broadcast(message) {
     const data = JSON.stringify(message);
     for (const ws of this.connections) {
-      if (ws.readyState !== WebSocket.OPEN) continue;
-      if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
-        // One slow client must not be able to buffer the whole session history.
-        this.#logSync('ws.backpressure.close', {
-          remote: ws.remoteAddress ?? '',
-          buffered: ws.bufferedAmount,
-          frame_bytes: Buffer.byteLength(data),
-        });
-        this.connections.delete(ws);
-        try {
-          ws.close(1009, 'client too slow');
-        } catch {}
-        continue;
-      }
-      try {
-        ws.send(data);
-      } catch (error) {
-        this.#logSync('ws.send.error', { message: error?.message ?? String(error) });
-      }
+      this.#send(ws, data);
     }
   }
 

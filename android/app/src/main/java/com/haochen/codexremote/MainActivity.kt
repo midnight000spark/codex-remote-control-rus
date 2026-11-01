@@ -30,6 +30,7 @@ internal const val KEY_CONNECTION_ID = "connection_id"
 internal const val KEY_HOST = "host"
 internal const val KEY_PORT = "port"
 internal const val KEY_TOKEN = "token"
+internal const val KEY_CONNECTION_TOKENS = "connection_tokens"
 internal const val KEY_CONNECTION_HISTORY = "connection_history"
 internal const val KEY_SESSION = "session"
 internal const val KEY_MODEL = "model"
@@ -92,6 +93,7 @@ class MainActivity : ComponentActivity() {
     internal var sessionCacheRootMemory: JSONObject? = null
     internal var liveTurnStatusPending: String? = null
     internal var liveTurnStatusFlushRunnable: Runnable? = null
+    internal val connectionTokens = mutableMapOf<String, String>()
     internal val pendingRequests = mutableMapOf<String, ResponseHandler>()
     internal val pendingRequestTimeouts = mutableMapOf<String, Runnable>()
     internal val renderedEventKeys = mutableSetOf<String>()
@@ -225,6 +227,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        // Must run before loadBridgeUrl()/loadConnectionHistory(): it migrates
+        // tokens out of the persisted url and into the token store.
+        loadConnectionTokens()
         bridgeUrl = loadBridgeUrl()
         replaceConnectionHistory(loadConnectionHistory(bridgeUrl))
         persistConnectionHistory()

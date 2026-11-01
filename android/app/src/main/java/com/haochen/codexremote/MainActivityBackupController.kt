@@ -15,6 +15,7 @@ private val STRING_BACKUP_KEYS = listOf(
     KEY_HOST,
     KEY_PORT,
     KEY_TOKEN,
+    KEY_CONNECTION_TOKENS,
     KEY_CONNECTION_HISTORY,
     KEY_MODEL,
     KEY_CHAT_MODE,
@@ -138,8 +139,19 @@ private fun MainActivity.buildSettingsBackupDocument(): JSONObject {
         put("exportedAt", System.currentTimeMillis())
         put("currentConnection", currentConnection)
         put("connections", buildConnectionHistoryBackupArray())
+        put("connectionTokens", buildConnectionTokensBackupObject())
         put("settings", settings)
     }
+}
+
+private fun MainActivity.buildConnectionTokensBackupObject(): JSONObject {
+    val stored = JSONObject()
+    connectionTokens.forEach { (url, token) ->
+        if (url.isNotBlank() && token.isNotBlank()) {
+            stored.put(stripTokenFromUrl(url), token)
+        }
+    }
+    return stored
 }
 
 private fun MainActivity.buildConnectionHistoryBackupArray(): JSONArray {
@@ -189,6 +201,10 @@ private fun MainActivity.applySettingsBackupDocument(root: JSONObject) {
         editor.putStringIfPresent(KEY_TOKEN, it.optStringOrNull("token"))
     }
     editor.putString(KEY_CONNECTION_HISTORY, normalizeBackupConnections(connections, currentConnection).toString())
+    editor.putString(
+        KEY_CONNECTION_TOKENS,
+        normalizeBackupConnectionTokens(root.optJSONObject("connectionTokens"), root.optJSONObject("currentConnection")).toString(),
+    )
     editor.putStringIfPresent(KEY_MODEL, settings.optStringOrNull("model"))
     editor.putStringIfPresent(KEY_CHAT_MODE, settings.optStringOrNull("chatMode"))
     editor.putStringIfPresent(KEY_CHAT_REASONING_EFFORT, settings.optStringOrNull("chatReasoningEffort"))
@@ -231,6 +247,34 @@ private fun clearBackupKeys(editor: android.content.SharedPreferences.Editor) {
     INT_BACKUP_KEYS.forEach(editor::remove)
 }
 
+// Backups written by older builds carry tokens inside urls, so fold those in
+// as well as the explicit token map.
+private fun MainActivity.normalizeBackupConnectionTokens(
+    tokens: JSONObject?,
+    currentConnection: JSONObject?,
+): JSONObject {
+    val merged = JSONObject()
+    fun putToken(url: String?, token: String?) {
+        val normalizedUrl = url?.trim()?.takeIf { it.isNotBlank() }?.let(::stripTokenFromUrl) ?: return
+        val normalizedToken = token?.trim()?.takeIf { it.isNotBlank() } ?: return
+        try {
+            merged.put(normalizedUrl, normalizedToken)
+        } catch (_: Exception) {
+        }
+    }
+    tokens?.let { stored ->
+        for (key in stored.keys()) {
+            putToken(key, stored.optString(key, ""))
+        }
+    }
+    currentConnection?.let { current ->
+        val url = current.optString("url", "")
+        putToken(url, current.optString("token", ""))
+        putToken(url, extractTokenFromUrl(url))
+    }
+    return merged
+}
+
 private fun MainActivity.normalizeBackupConnections(
     connections: JSONArray,
     currentConnection: JSONObject?,
@@ -241,7 +285,7 @@ private fun MainActivity.normalizeBackupConnections(
         val url = item.optString("url", "").trim()
         if (url.isBlank()) continue
         BridgeHistoryEntry.fromUrl(
-            url = url,
+            url = stripTokenFromUrl(url),
             lastUsedAt = item.optLong("lastUsedAt", 0L).takeIf { it > 0L } ?: System.currentTimeMillis(),
             name = item.optString("name", "").trim(),
             id = item.optString("id", "").trim().takeIf { it.isNotBlank() } ?: BridgeHistoryEntry.createId(),
@@ -252,7 +296,7 @@ private fun MainActivity.normalizeBackupConnections(
         val url = current.optString("url", "").trim()
         if (url.isNotBlank() && entries.none { it.url == url }) {
             BridgeHistoryEntry.fromUrl(
-                url = url,
+                url = stripTokenFromUrl(url),
                 lastUsedAt = System.currentTimeMillis(),
                 id = current.optString("connectionId", "").trim().takeIf { it.isNotBlank() }
                     ?: BridgeHistoryEntry.createId(),
@@ -283,6 +327,7 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     if (bridgeClient != null) {
         disconnectBridge(detail = "Резервная копия импортирована, соединение разорвано", switchToConnectionPage = false)
     }
+    loadConnectionTokens()
     bridgeUrl = loadBridgeUrl()
     replaceConnectionHistory(loadConnectionHistory(bridgeUrl))
     currentConnectionId = loadCurrentConnectionId()
@@ -299,7 +344,7 @@ private fun MainActivity.applyBackedUpStateFromPreferences() {
     selectedReasoningEffort = prefs.getString(KEY_CHAT_REASONING_EFFORT, "")?.trim().orEmpty()
     selectedReasoningSummary = normalizeReasoningSummary(prefs.getString(KEY_CHAT_REASONING_SUMMARY, "auto"))
     selectedSandbox = normalizeSandboxPreference(prefs.getString(KEY_CHAT_SANDBOX, "workspaceWrite"))
-    autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, false)
+    autoReconnectEnabled = prefs.getBoolean(KEY_AUTO_RECONNECT, true)
     autoReconnectMaxAttempts = loadAutoReconnectMaxAttempts()
     startupPagePreference = loadStartupPagePreference()
     sessionHistoryMonths = loadSessionHistoryMonths()

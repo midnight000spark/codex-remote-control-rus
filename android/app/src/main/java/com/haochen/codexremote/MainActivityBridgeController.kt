@@ -89,10 +89,13 @@ internal fun MainActivity.disconnectBridge(
     }
 
 internal fun MainActivity.connectToBridge(
-        url: String,
+        rawUrl: String,
         isAutoReconnect: Boolean = false,
         connectionId: String? = null,
     ) {
+        // Persisted urls and history entries are token-less; re-attach the
+        // token that belongs to this connection.
+        val url = attachStoredToken(rawUrl)
         // A URL restored from prefs or history can be malformed; never let that
         // reach URI.create and crash the activity.
         val bridgeUri = try {
@@ -118,9 +121,9 @@ internal fun MainActivity.connectToBridge(
             currentConnectionId = targetConnectionId ?: currentConnectionId
             connectionDetail =
                 if (isAutoReconnect || reconnectAttempt > 0) {
-                    "Автопереподключение: $url"
+                    "Автопереподключение: ${displayUrlWithoutToken(url)}"
                 } else {
-                    "Подключение: $url"
+                    "Подключение: ${displayUrlWithoutToken(url)}"
                 }
             return
         }
@@ -136,7 +139,9 @@ internal fun MainActivity.connectToBridge(
             reconnectAttempt = 0
         }
         saveBridgeSettings(url, targetConnectionId)
-        bridgeUrl = url
+        // The field and prefs keep the token-less form; the token is re-attached
+        // on every connect.
+        bridgeUrl = stripTokenFromUrl(url)
         currentConnectionId = targetConnectionId
         switchLocalSessionCache(targetEntry)
         disconnectRequested = false
@@ -145,9 +150,9 @@ internal fun MainActivity.connectToBridge(
         currentBridgeUrl = url
         connectionDetail =
             if (isAutoReconnect || reconnectAttempt > 0) {
-                "Автопереподключение${reconnectAttempt.takeIf { it > 0 }?.let { "($it)" }.orEmpty()}: $url"
+                "Автопереподключение${reconnectAttempt.takeIf { it > 0 }?.let { "($it)" }.orEmpty()}: ${displayUrlWithoutToken(url)}"
             } else {
-                "Подключение: $url"
+                "Подключение: ${displayUrlWithoutToken(url)}"
             }
 
         // Bumped on every connect and disconnect so frames parsed for a dead
@@ -324,8 +329,9 @@ internal fun MainActivity.buildBridgeUrl(): String {
         val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
         val query = uri.rawQuery
         val tokenFromUrl = query?.let { extractTokenFromQuery(it) }
+        val tokenFromConnection = storedTokenForUrl("${uri.scheme}://$host:$port$path")
         val tokenFromPrefs = prefs.getString(KEY_TOKEN, "")?.trim().orEmpty()
-        val token = tokenFromUrl ?: tokenFromPrefs
+        val token = tokenFromUrl ?: tokenFromConnection ?: tokenFromPrefs
         if (token.isBlank()) {
             throw IllegalArgumentException("В URL нужен token, например ?token=...")
         }
@@ -342,8 +348,9 @@ internal fun MainActivity.buildBridgeUrl(): String {
 internal fun MainActivity.saveBridgeSettings(url: String, connectionId: String? = currentConnectionId) {
         val token = extractTokenFromUrl(url)
         val uri = URI.create(url)
+        rememberConnectionToken(url, token)
         val editor = prefs.edit()
-            .putString(KEY_URL, url)
+            .putString(KEY_URL, stripTokenFromUrl(url))
             .putString(KEY_SESSION, activeSessionId)
         val normalizedConnectionId = connectionId?.trim()?.takeIf { it.isNotBlank() }
         if (normalizedConnectionId == null) {
@@ -365,17 +372,20 @@ internal fun MainActivity.saveBridgeSettings(url: String, connectionId: String? 
 
 internal fun MainActivity.rememberConnectionHistory(url: String, bridgeId: String? = null): BridgeHistoryEntry? {
         val normalizedBridgeId = bridgeId?.trim()?.takeIf { it.isNotBlank() }
-        val existing = resolveConnectionHistory(url = url, connectionId = currentConnectionId, bridgeId = normalizedBridgeId)
+        // History keeps the token-less url; the token lives in the token store.
+        rememberConnectionToken(url, extractTokenFromUrl(url))
+        val historyUrl = stripTokenFromUrl(url)
+        val existing = resolveConnectionHistory(url = historyUrl, connectionId = currentConnectionId, bridgeId = normalizedBridgeId)
         val currentEntry = findConnectionHistoryById(currentConnectionId)
         val reusedConnectionId =
-            currentConnectionId?.trim()?.takeIf { it.isNotBlank() && (currentEntry == null || currentEntry.url == url) }
+            currentConnectionId?.trim()?.takeIf { it.isNotBlank() && (currentEntry == null || currentEntry.url == historyUrl) }
         val inheritedName =
             existing?.name
                 ?: normalizedBridgeId?.let { id ->
                     connectionHistory.firstOrNull { it.bridgeId == id && !it.name.isNullOrBlank() }?.name
                 }
         val entry = BridgeHistoryEntry.fromUrl(
-            url = url,
+            url = historyUrl,
             lastUsedAt = System.currentTimeMillis(),
             name = inheritedName,
             id = existing?.id ?: reusedConnectionId ?: BridgeHistoryEntry.createId(),
@@ -412,7 +422,11 @@ internal fun MainActivity.updateConnectionHistory(
         url: String,
     ): BridgeHistoryEntry? {
         val existing = findConnectionHistoryById(connectionId) ?: return null
-        val normalizedUrl = normalizeBridgeUrl(url, requireToken = false)
+        // Normalize first so a pasted token is stored under the canonical
+        // token-less key of this connection.
+        val normalizedWithToken = normalizeBridgeUrl(url, requireToken = false)
+        rememberConnectionToken(normalizedWithToken, extractTokenFromUrl(normalizedWithToken))
+        val normalizedUrl = stripTokenFromUrl(normalizedWithToken)
         val updated = BridgeHistoryEntry.fromUrl(
             url = normalizedUrl,
             lastUsedAt = existing.lastUsedAt,
@@ -452,8 +466,10 @@ internal fun MainActivity.loadConnectionHistory(fallbackUrl: String): List<Bridg
                     val item = array.optJSONObject(i) ?: continue
                     val url = item.optString("url", "").trim()
                     if (url.isBlank()) continue
+                    // Older builds stored the token inside the entry url.
+                    rememberConnectionToken(url, extractTokenFromUrl(url))
                     BridgeHistoryEntry.fromUrl(
-                        url = url,
+                        url = stripTokenFromUrl(url),
                         lastUsedAt = item.optLong("lastUsedAt", 0L).takeIf { it > 0L } ?: System.currentTimeMillis(),
                         name = item.optString("name", "").trim(),
                         id = item.optString("id", "").trim().takeIf { it.isNotBlank() } ?: BridgeHistoryEntry.createId(),
@@ -468,7 +484,7 @@ internal fun MainActivity.loadConnectionHistory(fallbackUrl: String): List<Bridg
             return parsed
         }
         return fallbackUrl.takeIf { it.isNotBlank() }
-            ?.let { BridgeHistoryEntry.fromUrl(it, System.currentTimeMillis()) }
+            ?.let { BridgeHistoryEntry.fromUrl(stripTokenFromUrl(it), System.currentTimeMillis()) }
             ?.let(::listOf)
             .orEmpty()
     }
@@ -479,7 +495,7 @@ internal fun MainActivity.persistConnectionHistory() {
             array.put(
                 JSONObject().apply {
                     put("id", entry.id)
-                    put("url", entry.url)
+                    put("url", stripTokenFromUrl(entry.url))
                     put("lastUsedAt", entry.lastUsedAt)
                     put("name", entry.name.orEmpty())
                     put("bridgeId", entry.bridgeId.orEmpty())
@@ -513,7 +529,7 @@ internal fun MainActivity.resolveConnectionHistory(
         connectionId: String? = null,
         bridgeId: String? = null,
     ): BridgeHistoryEntry? {
-        val normalizedUrl = url.trim()
+        val normalizedUrl = stripTokenFromUrl(url)
         val normalizedBridgeId = bridgeId?.trim()?.takeIf { it.isNotBlank() }
         findConnectionHistoryById(connectionId)
             ?.takeIf { entry -> normalizedUrl.isBlank() || entry.url == normalizedUrl }
@@ -529,7 +545,7 @@ internal fun MainActivity.resolveConnectionHistory(
 
 internal fun MainActivity.connectionDisplayName(url: String, connectionId: String?): String {
         return findConnectionHistoryById(connectionId)?.displayName()
-            ?: connectionHistory.firstOrNull { it.url == url }?.displayName()
+            ?: connectionHistory.firstOrNull { it.url == stripTokenFromUrl(url) }?.displayName()
             ?: BridgeHistoryEntry.fromUrl(url)?.displayName()
             ?: url
     }
@@ -676,9 +692,10 @@ internal fun MainActivity.clearPendingRequests() {
 
 internal fun MainActivity.loadBridgeUrl(): String {
         prefs.getString(KEY_URL, "")?.trim()?.takeIf { it.isNotBlank() }?.let {
-            // An unparsable persisted URL must not be handed to the connector.
+            // An unparsable persisted URL must not be handed to the connector,
+            // and the token stays out of the field: it is re-attached on connect.
             return try {
-                normalizeBridgeUrl(it, requireToken = false)
+                stripTokenFromUrl(normalizeBridgeUrl(it, requireToken = false))
             } catch (_: Exception) {
                 ""
             }
@@ -686,11 +703,11 @@ internal fun MainActivity.loadBridgeUrl(): String {
 
         val host = prefs.getString(KEY_HOST, "")?.trim().orEmpty()
         val port = prefs.getString(KEY_PORT, "8787")?.trim().orEmpty()
-        val token = prefs.getString(KEY_TOKEN, "")?.trim().orEmpty()
         if (host.isBlank()) return ""
-        val tokenPart = if (token.isBlank()) "" else "?token=${encodeToken(token)}"
         return try {
-            normalizeBridgeUrl("ws://$host:${if (port.isBlank()) "8787" else port}/$tokenPart", requireToken = false)
+            stripTokenFromUrl(
+                normalizeBridgeUrl("ws://$host:${if (port.isBlank()) "8787" else port}/", requireToken = false),
+            )
         } catch (_: Exception) {
             ""
         }
@@ -821,6 +838,7 @@ internal fun MainActivity.normalizeBridgeUrl(input: String, requireToken: Boolea
             ?: prefs.getString(KEY_PORT, "8787")?.trim()?.takeIf { it.isNotBlank() }
             ?: "8787"
         val token = extractTokenFromQuery(query).orEmpty()
+            .ifBlank { storedTokenForUrl("$scheme://$host:$port$path").orEmpty() }
             .ifBlank { prefs.getString(KEY_TOKEN, "")?.trim().orEmpty() }
 
         if (requireToken && token.isBlank()) {

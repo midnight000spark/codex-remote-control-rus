@@ -52,6 +52,24 @@ export class CodexBackend extends EventEmitter {
       env: process.env,
     });
 
+    this.child.on('error', (error) => {
+      this.emit('message', {
+        type: 'notification',
+        method: 'error',
+        params: {
+          code: 'codex_process_error',
+          message: error?.message ?? String(error),
+        },
+      });
+    });
+    // Without stream error listeners an EPIPE after the child exits becomes an
+    // uncaught exception and takes the whole bridge down.
+    for (const stream of [this.child.stdin, this.child.stdout, this.child.stderr]) {
+      stream?.on?.('error', (error) => {
+        this.#protocolLog('codex-stream-error', `${error?.message ?? error}`);
+      });
+    }
+
     this.child.on('exit', (code, signal) => {
       for (const [id, pending] of this.pending) {
         clearTimeout(pending.timer);
@@ -95,10 +113,18 @@ export class CodexBackend extends EventEmitter {
     }
     this.stdoutRl?.close();
     this.stderrRl?.close();
-    if (this.child && !this.child.killed) {
-      this.child.kill('SIGTERM');
-    }
+    const child = this.child;
     this.child = null;
+    if (child && !child.killed) {
+      child.kill('SIGTERM');
+      // Escalate if the process ignores SIGTERM, otherwise stop() leaks it.
+      const killer = setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }, 3000);
+      killer.unref?.();
+    }
   }
 
   async listThreads(params = {}) {
@@ -286,7 +312,20 @@ export class CodexBackend extends EventEmitter {
         reject(new Error(`request timeout for ${method}`));
       }, this.requestTimeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.child.stdin.write(`${line}\n`);
+      const stdin = this.child?.stdin;
+      if (!stdin?.writable) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new Error('codex app-server is not running'));
+        return;
+      }
+      try {
+        stdin.write(`${line}\n`);
+      } catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error);
+      }
     });
     return result;
   }
@@ -294,7 +333,19 @@ export class CodexBackend extends EventEmitter {
   async #respond(message) {
     const line = JSON.stringify(message);
     this.#protocolLog('bridge->codex', line);
-    this.child.stdin.write(`${line}\n`);
+    const stdin = this.child?.stdin;
+    if (!stdin?.writable) {
+      this.emit('message', {
+        type: 'notification',
+        method: 'error',
+        params: {
+          code: 'codex_process_not_running',
+          message: 'codex app-server is not running; response dropped',
+        },
+      });
+      return;
+    }
+    stdin.write(`${line}\n`);
   }
 
   #protocolLog(direction, line) {

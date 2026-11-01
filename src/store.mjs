@@ -8,10 +8,14 @@ function clone(value) {
 }
 
 export class StateStore {
-  constructor(filePath, { maxEventsPerSession = 500 } = {}) {
+  constructor(filePath, { maxEventsPerSession = 500, saveDebounceMs = 200 } = {}) {
     this.filePath = filePath;
     this.maxEventsPerSession = maxEventsPerSession;
+    this.saveDebounceMs = saveDebounceMs;
     this.state = this.#emptyState();
+    this.saveTimer = null;
+    this.saveInFlight = null;
+    this.savePending = false;
   }
 
   #emptyState() {
@@ -52,6 +56,38 @@ export class StateStore {
     await fs.rename(tmp, this.filePath);
   }
 
+  // State is serialized as one large JSON document. Writing it on every event
+  // blocks the event loop and makes session.list take seconds, so mutations
+  // only mark the store dirty and coalesce writes into one flush.
+  saveSoon() {
+    this.savePending = true;
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.flush().catch((error) => console.error('state save failed:', error));
+    }, this.saveDebounceMs);
+    this.saveTimer.unref?.();
+  }
+
+  async flush() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    if (this.saveInFlight) {
+      await this.saveInFlight;
+    }
+    if (!this.savePending) return;
+    this.savePending = false;
+    this.saveInFlight = this.save().finally(() => {
+      this.saveInFlight = null;
+    });
+    await this.saveInFlight;
+    if (this.savePending) {
+      await this.flush();
+    }
+  }
+
   listSessions() {
     return Object.values(this.state.sessions)
       .map((session) => clone(session))
@@ -78,7 +114,7 @@ export class StateStore {
     return approval ? clone(approval) : null;
   }
 
-  async upsertSession(session, { touch = false } = {}) {
+  #applyUpsert(session, { touch = false } = {}) {
     const now = nowIso();
     const current = this.state.sessions[session.session_id] ?? {
       session_id: session.session_id,
@@ -107,8 +143,24 @@ export class StateStore {
       updatedAt: touch ? now : (session.updatedAt ?? current.updatedAt ?? now),
     };
     this.state.sessions[next.session_id] = next;
-    await this.save();
+    return next;
+  }
+
+  async upsertSession(session, { touch = false } = {}) {
+    const next = this.#applyUpsert(session, { touch });
+    this.saveSoon();
     return clone(next);
+  }
+
+  async upsertSessions(sessions) {
+    const applied = [];
+    for (const session of sessions) {
+      applied.push(clone(this.#applyUpsert(session)));
+    }
+    if (applied.length > 0) {
+      this.saveSoon();
+    }
+    return applied;
   }
 
   async appendEvent(sessionId, event) {
@@ -129,7 +181,7 @@ export class StateStore {
       session.events = session.events.slice(-this.maxEventsPerSession);
     }
     this.state.sessions[sessionId] = session;
-    await this.save();
+    this.saveSoon();
     return clone(stored);
   }
 
@@ -151,7 +203,7 @@ export class StateStore {
       };
       session.updatedAt = nowIso();
       this.state.sessions[sessionId] = session;
-      await this.save();
+      this.saveSoon();
       return clone(events[index]);
     }
     return null;
@@ -165,7 +217,7 @@ export class StateStore {
     session.pending_approvals = session.pending_approvals ?? {};
     session.pending_approvals[String(approval.request_id)] = clone(approval);
     session.updatedAt = nowIso();
-    await this.save();
+    this.saveSoon();
     return clone(approval);
   }
 
@@ -178,7 +230,7 @@ export class StateStore {
     if (session.pending_approvals?.[key]) {
       delete session.pending_approvals[key];
       session.updatedAt = nowIso();
-      await this.save();
+      this.saveSoon();
     }
   }
 

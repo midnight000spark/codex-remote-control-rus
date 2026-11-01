@@ -46,6 +46,10 @@ export class TurnContentBuilder {
     this.store = store;
     this.loadHydrationThread = loadHydrationThread;
     this.logSync = logSync;
+    // Completed turns are immutable; caching their items avoids one JSON-RPC
+    // round trip per turn on every content/sync request.
+    this.turnItemsCache = new Map();
+    this.maxTurnItemsCache = 4000;
   }
 
   #logSync(event, details = {}) {
@@ -790,6 +794,11 @@ export class TurnContentBuilder {
 
   async #loadTurnItems(threadId, turn) {
     const inlineItems = Array.isArray(turn?.items) ? turn.items : [];
+    const completed = Boolean(turn?.status) && turn.status !== 'inProgress';
+    const cacheKey = completed && turn?.id ? `${threadId}:${turn.id}` : null;
+    if (cacheKey && this.turnItemsCache.has(cacheKey)) {
+      return this.turnItemsCache.get(cacheKey);
+    }
     const canListTurnItems = typeof this.backend.listTurnItems === 'function';
     const shouldLoadRemoteItems = canListTurnItems && turn?.id && threadId && (turn?.itemsView !== 'full' || inlineItems.length === 0);
     if (!shouldLoadRemoteItems) {
@@ -810,7 +819,14 @@ export class TurnContentBuilder {
         cursor = Array.isArray(page) ? null : page?.nextCursor ?? null;
       } while (cursor);
 
-      return loaded.length > 0 ? loaded : inlineItems;
+      const result = loaded.length > 0 ? loaded : inlineItems;
+      if (cacheKey) {
+        this.turnItemsCache.set(cacheKey, result);
+        while (this.turnItemsCache.size > this.maxTurnItemsCache) {
+          this.turnItemsCache.delete(this.turnItemsCache.keys().next().value);
+        }
+      }
+      return result;
     } catch {
       return inlineItems;
     }

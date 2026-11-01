@@ -168,6 +168,20 @@ Options:
   const bridge = new BridgeServer({ backend, store, host, port, token, bridgeId, syncLogPath: args.syncLog });
 
   await bridge.start();
+  let shuttingDown = false;
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    try {
+      await bridge.stop();
+    } catch {}
+    try {
+      await store.flush();
+    } catch {}
+    process.exit(0);
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
   const address = bridge.address();
   console.log(`Codex bridge ready on ${address.host}:${address.port}`);
   console.log(`Bridge ID file: ${args.bridgeIdFile}`);

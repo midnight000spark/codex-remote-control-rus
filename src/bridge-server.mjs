@@ -469,8 +469,8 @@ export class BridgeServer extends EventEmitter {
           const stored = summary?.session_id ? this.store.getSession(summary.session_id) : null;
           return mergeSessionSummary(summary, stored);
         }).filter((session) => session?.session_id);
+        await this.store.upsertSessions(backendSessions);
         for (const session of backendSessions) {
-          await this.store.upsertSession(session);
           sessionsById.set(session.session_id, session);
         }
         for (const session of this.store.listSessions()) {

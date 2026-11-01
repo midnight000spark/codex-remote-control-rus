@@ -4,8 +4,20 @@ import { clone, firstNonEmptyString, safeJsonLineParse } from './common.mjs';
 import { normalizeTokenUsageSnapshot } from './session-normalization.mjs';
 
 const rolloutMessageTimestampCache = new Map();
+const rolloutEventCache = new Map();
+const rolloutContentEntriesCache = new Map();
+const rolloutMetadataCache = new Map();
+const MAX_CACHED_ROLLOUT_FILES = 16;
 const ROLLOUT_CONTEXT_SCAN_BYTES = 64 * 1024;
 const ROLLOUT_READ_CHUNK_BYTES = 256 * 1024;
+
+function rememberCached(map, key, value) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > MAX_CACHED_ROLLOUT_FILES) {
+    map.delete(map.keys().next().value);
+  }
+}
 
 function emptyRolloutCursor(offset = 0) {
   return {
@@ -291,6 +303,18 @@ export async function extractSessionMetadataFromRollout(session) {
     return {};
   }
 
+  let stat;
+  try {
+    stat = await fs.stat(rolloutPath);
+  } catch {
+    return {};
+  }
+  const cached = rolloutMetadataCache.get(rolloutPath);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    rememberCached(rolloutMetadataCache, rolloutPath, cached);
+    return cached.metadata;
+  }
+
   try {
     const raw = await fs.readFile(rolloutPath, 'utf8');
     const metadata = {};
@@ -348,6 +372,11 @@ export async function extractSessionMetadataFromRollout(session) {
       }
     }
 
+    rememberCached(rolloutMetadataCache, rolloutPath, {
+      size: stat.size,
+      mtimeMs: stat.mtimeMs,
+      metadata,
+    });
     return metadata;
   } catch {
     return {};
@@ -360,14 +389,63 @@ export async function buildEventsFromRolloutFile(
   threadId = sessionId,
   { afterBytes = null } = {},
 ) {
-  const cursor = afterBytes == null
-    ? emptyRolloutCursor(0)
-    : await createRolloutEventCursor(filePath, afterBytes);
-  const result = await readRolloutEventsFromCursor(sessionId, filePath, threadId, cursor);
+  if (afterBytes != null) {
+    const cursor = await createRolloutEventCursor(filePath, afterBytes);
+    const result = await readRolloutEventsFromCursor(sessionId, filePath, threadId, cursor);
+    return result.events;
+  }
+
+  let stat;
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    return [];
+  }
+  const key = filePath;
+  const cached = rolloutEventCache.get(key);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    rememberCached(rolloutEventCache, key, cached);
+    return cached.events;
+  }
+  if (cached && stat.size > cached.size && cached.cursor) {
+    try {
+      const result = await readRolloutEventsFromCursor(sessionId, filePath, threadId, cached.cursor);
+      const next = {
+        size: stat.size,
+        mtimeMs: stat.mtimeMs,
+        cursor: result.cursor,
+        events: cached.events.concat(result.events),
+      };
+      rememberCached(rolloutEventCache, key, next);
+      return next.events;
+    } catch {
+      rolloutEventCache.delete(key);
+    }
+  }
+
+  const result = await readRolloutEventsFromCursor(sessionId, filePath, threadId, emptyRolloutCursor(0));
+  rememberCached(rolloutEventCache, key, {
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    cursor: result.cursor,
+    events: result.events,
+  });
   return result.events;
 }
 
 export async function buildContentEntriesFromRolloutFile(sessionId, filePath, threadId = sessionId) {
+  let stat;
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    return [];
+  }
+  const cacheKey = `${sessionId}:${filePath}`;
+  const cached = rolloutContentEntriesCache.get(cacheKey);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    rememberCached(rolloutContentEntriesCache, cacheKey, cached);
+    return cached.entries;
+  }
   const raw = await fs.readFile(filePath, 'utf8');
   const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
   const entries = [];
@@ -426,5 +504,10 @@ export async function buildContentEntriesFromRolloutFile(sessionId, filePath, th
     }
   }
 
+  rememberCached(rolloutContentEntriesCache, cacheKey, {
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    entries,
+  });
   return entries;
 }

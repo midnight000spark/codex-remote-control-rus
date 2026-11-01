@@ -34,7 +34,7 @@ The first server message is a hello payload:
   "ok": true,
   "payload": {
     "name": "codex-remote-control",
-    "version": "0.2.0",
+    "version": "<package.json version>",
     "server_time": "2026-05-24T00:00:00.000Z"
   }
 }
@@ -107,8 +107,24 @@ Backend notifications are broadcast as:
 
 ## Field Naming
 
-Client-to-bridge requests use `snake_case` (`session_id`, `request_id`,
-`approval_policy`). `thread_id` is accepted as an alias of `session_id`.
+The bridge does not normalise casing on the way in. Each handler reads the keys
+it was written against, so a key sent in the other spelling is ignored without
+an error. Two rules cover almost everything:
+
+- **Identifiers** are `snake_case`: `session_id`, `thread_id`, `turn_id`,
+  `request_id`, `since_seq`, `max_bytes`. `thread_id` is accepted anywhere a
+  session is resolved.
+- **Session and turn settings** are `camelCase`: `approvalPolicy`,
+  `approvalsReviewer`, `sandboxPolicy`, `modelProvider`, `serviceTier`,
+  `personality`, `persistExtendedHistory`, `baseInstructions`,
+  `developerInstructions`, `threadSource`, `sessionStartSource`,
+  `responsesapiClientMetadata`, `strictAutoReview`.
+
+Three handlers accept a second spelling:
+
+- `session.list` reads `history_months ?? historyMonths`;
+- `session.update` reads `sandbox` or `sandboxPolicy` for the same field;
+- `turn.interrupt` reads `turn_id ?? turnId`.
 
 Event envelopes written by the bridge are always `snake_case` (`seq`, `at`,
 `event`, `session_id`, `turn_id`). The nested `payload` of an event mirrors
@@ -116,6 +132,20 @@ whatever the Codex backend sent, so its keys may be `snake_case` or `camelCase`
 (`threadId` / `thread_id`, `turnId` / `turn_id`). Clients must read both
 spellings for backend-provided fields and use the envelope only for ordering and
 session attribution.
+
+### Request payload keys, as spelled
+
+| Message | Keys |
+| --- | --- |
+| `session.list` | `history_months` / `historyMonths` |
+| `session.start` | `cwd`, `model`, `approvalPolicy`, `approvalsReviewer`, `sandbox`, `permissions`, `config`, `serviceName`, `baseInstructions`, `developerInstructions`, `personality`, `ephemeral`, `sessionStartSource`, `threadSource`, `environments`, `dynamicTools`, `mockExperimentalField`, `experimentalRawEvents`, `persistExtendedHistory` |
+| `session.resume` | `session_id` / `thread_id`, `history`, `path`, `model`, `modelProvider`, `serviceTier`, `cwd`, `approvalPolicy`, `approvalsReviewer`, `sandbox`, `permissions`, `config`, `baseInstructions`, `developerInstructions`, `personality`, `excludeTurns`, `persistExtendedHistory` |
+| `session.update` | `session_id` / `thread_id`, `approvalPolicy`, `permissions`, `sandbox` / `sandboxPolicy` |
+| `turn.send` | `session_id` / `thread_id`, `text`, `input`, `responsesapiClientMetadata`, `environments`, `cwd`, `approvalPolicy`, `approvalsReviewer`, `sandboxPolicy`, `permissions`, `model`, `serviceTier`, `effort`, `summary`, `personality`, `outputSchema`, `collaborationMode`, `turn_id` |
+| `turn.steer` | `session_id` / `thread_id`, `turn_id`, `text`, `input`, `responsesapiClientMetadata` |
+| `turn.interrupt` | `session_id` / `thread_id`, `turn_id` / `turnId` |
+| `approval.response` | `request_id` / `requestId`, `session_id` / `thread_id`, `decision`, `permissions`, `scope`, `strictAutoReview`, `result`, `error` |
+| `file.read` | `session_id` / `thread_id`, `path`, `max_bytes` |
 
 ## Client Message Types
 

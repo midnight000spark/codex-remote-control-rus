@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=android/scripts/jdk.sh
+source "$ROOT_DIR/android/scripts/jdk.sh"
 DEBUG_DIR="$ROOT_DIR/android/app/build/outputs/apk/debug"
 VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
 DEBUG_APK="$DEBUG_DIR/codex-remote-control-v${VERSION}-debug.apk"

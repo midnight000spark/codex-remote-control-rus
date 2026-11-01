@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=android/scripts/jdk.sh
+source "$ROOT_DIR/android/scripts/jdk.sh"
 SIGNING_CONFIG="$ROOT_DIR/android/release-signing.properties"
 RELEASE_DIR="$ROOT_DIR/android/app/build/outputs/apk/release"
 VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"

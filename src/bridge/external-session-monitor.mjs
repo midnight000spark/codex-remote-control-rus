@@ -79,12 +79,16 @@ function mergeMonitorSummary(summary, stored) {
 
 // A bridge without a reachable Codex backend used to retry every 5s forever,
 // which keeps the CPU and the log busy. Each consecutive failure doubles the
-// delay up to a cap; a success puts it back to the poll interval.
+// delay up to a cap; a success puts it back to the poll interval. The first
+// failure retries after the normal interval: a single transient error should
+// not slow the monitor down.
 export function externalMonitorBackoffMs(intervalMs, failures, maxBackoffMs) {
   const base = Math.max(20, Number(intervalMs) || 5000);
   if (!(failures > 0)) return base;
   const cap = Math.max(base, Number(maxBackoffMs) || 60_000);
-  return Math.min(base * 2 ** Math.min(failures, 4), cap);
+  // No exponent clamp: Math.min(..., cap) already bounds the result, while
+  // min(failures, 4) made the cap unreachable when interval < cap / 16.
+  return Math.min(base * 2 ** (failures - 1), cap);
 }
 
 export class ExternalSessionMonitor {

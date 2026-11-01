@@ -129,3 +129,10 @@ export function summarizeClientPayload(type, payload = {}) {
       return {};
   }
 }
+
+export function isLoopbackHost(host) {
+  const value = String(host ?? '').trim().toLowerCase();
+  if (!value) return false;
+  if (value === 'localhost' || value === '::1' || value === '[::1]') return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(value);
+}

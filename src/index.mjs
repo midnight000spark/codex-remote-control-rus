@@ -7,6 +7,7 @@ import { MockBackend } from './backends/mock.mjs';
 import { CodexBackend } from './backends/codex.mjs';
 import { BridgeServer } from './bridge-server.mjs';
 import { resolveCodexBin } from './codex-bin-resolver.mjs';
+import { isLoopbackHost } from './bridge/common.mjs';
 
 function defaultDataDir() {
   return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'codex_remote_control');
@@ -25,6 +26,7 @@ function parseArgs(argv) {
     tokenFile: path.join(dataDir, 'bridge-token.txt'),
     bridgeIdFile: path.join(dataDir, 'bridge-id.txt'),
     clearStateOnStart: false,
+    insecure: false,
     syncLog: null,
     protocolLog: null,
     codexBin: null,
@@ -40,6 +42,7 @@ function parseArgs(argv) {
     else if (arg === '--token-file') out.tokenFile = argv[++i];
     else if (arg === '--bridge-id-file') out.bridgeIdFile = argv[++i];
     else if (arg === '--clear-state-on-start') out.clearStateOnStart = true;
+    else if (arg === '--insecure') out.insecure = true;
     else if (arg === '--sync-log') out.syncLog = argv[++i];
     else if (arg === '--protocol-log') out.protocolLog = argv[++i];
     else if (arg === '--codex-bin') out.codexBin = argv[++i];
@@ -141,6 +144,7 @@ Options:
   --token-file PATH
   --bridge-id-file PATH
   --clear-state-on-start  clear local bridge history before startup
+  --insecure             allow unauthenticated access on a non-loopback listen address
   --sync-log PATH        enable sync debug logging to a file
   --protocol-log PATH    capture raw bridge<->codex protocol lines
   --codex-bin PATH
@@ -169,7 +173,19 @@ Options:
         protocolLogPath: args.protocolLog,
       })
     : new MockBackend();
-  const bridge = new BridgeServer({ backend, store, host, port, token, bridgeId, syncLogPath: args.syncLog });
+  if (args.insecure && !isLoopbackHost(host)) {
+    console.warn(`WARNING: ${host}:${port} accepts unauthenticated clients (--insecure).`);
+  }
+  const bridge = new BridgeServer({
+    backend,
+    store,
+    host,
+    port,
+    token,
+    bridgeId,
+    syncLogPath: args.syncLog,
+    allowUnauthenticated: args.insecure,
+  });
 
   await bridge.start();
   let shuttingDown = false;

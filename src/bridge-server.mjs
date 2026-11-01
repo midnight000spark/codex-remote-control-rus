@@ -10,6 +10,7 @@ import { createError, createResponse, createEvent, nowIso } from './protocol.mjs
 import {
   backendName,
   getTurnInputItemId,
+  isLoopbackHost,
   normalizeTurnStatusValue,
   requestKey,
   safeJson,
@@ -139,6 +140,7 @@ export class BridgeServer extends EventEmitter {
     name = 'codex-remote-control',
     version = '0.2.0',
     syncLogPath = null,
+    allowUnauthenticated = false,
     externalSessionPollIntervalMs = 5000,
     externalSessionPollLimit = 50,
   }) {
@@ -152,6 +154,7 @@ export class BridgeServer extends EventEmitter {
     this.name = name;
     this.version = version;
     this.syncLogPath = syncLogPath;
+    this.allowUnauthenticated = allowUnauthenticated;
     this.httpServer = null;
     this.wsServer = null;
     this.connections = new Set();
@@ -200,6 +203,19 @@ export class BridgeServer extends EventEmitter {
   }
 
   async start() {
+    // An empty token accepts every client, so only allow it on loopback unless
+    // the operator opts in explicitly.
+    if (!this.token && !this.allowUnauthenticated && !isLoopbackHost(this.host)) {
+      const error = new Error(
+        `refusing to listen on ${this.host} without a token; set a token or pass --insecure`,
+      );
+      error.code = 'TOKEN_REQUIRED';
+      this.#logSync('start.refused', { host: this.host, reason: 'missing_token' });
+      throw error;
+    }
+    if (!this.token) {
+      this.#logSync('start.unauthenticated', { host: this.host });
+    }
     await this.store.load();
     await this.backend.start();
     this.backend.on('message', this.backendListener);

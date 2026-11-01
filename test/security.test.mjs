@@ -177,3 +177,28 @@ test('every accepted WebSocket connection has an error listener', async () => {
     await harness.cleanup();
   }
 });
+test('bridge refuses a non-loopback listen address when no token is configured', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-security-token-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '0.0.0.0', port: 0, token: null });
+  try {
+    await assert.rejects(() => bridge.start(), /without a token/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('bridge allows an unauthenticated loopback listener', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-security-loopback-test-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const backend = new MockBackend();
+  const bridge = new BridgeServer({ backend, store, host: '127.0.0.1', port: 0, token: null });
+  try {
+    await bridge.start();
+    assert.ok(bridge.address().port > 0);
+  } finally {
+    await bridge.stop().catch(() => {});
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

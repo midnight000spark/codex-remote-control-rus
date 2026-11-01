@@ -747,10 +747,18 @@ internal fun MainActivity.resumeBridgeConnectionIfNeeded() {
         val targetUrl = entry?.url?.takeIf { it.isNotBlank() }
             ?: bridgeUrl.trim().takeIf { it.isNotBlank() }
             ?: return
+        // Returning to the foreground must not bypass the attempt budget.
+        // Without this check every onStart retried after exhaustion and showed
+        // the "attempts exhausted" notice again, so the one-shot notice was not
+        // one-shot at all.
+        if (!canScheduleReconnectAttempt(reconnectAttempt + 1)) return
         mainHandler.removeCallbacks(reconnectRunnable)
         reconnectScheduled = false
         mainHandler.post {
             if (!connected && bridgeClient == null && autoReconnectEnabled) {
+                // Count the attempt, so a foreground retry is not free on top of
+                // the configured budget.
+                reconnectAttempt += 1
                 connectToBridge(targetUrl, isAutoReconnect = true, connectionId = entry?.id ?: currentConnectionId)
             }
         }

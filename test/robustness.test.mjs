@@ -258,6 +258,40 @@ test('broadcast closes a connection whose buffer is over the limit', async () =>
   }
 });
 
+test('a frame larger than the limit is still delivered to an idle socket', async () => {
+  const { bridge, cleanup } = await createHarness();
+  try {
+    let closed = 0;
+    const idle = {
+      readyState: 1,
+      // Nothing is queued yet, so the frame itself must not be refused just
+      // because it is bigger than the limit.
+      bufferedAmount: 0,
+      remoteAddress: 'idle',
+      sent: [],
+      send: (data) => idle.sent.push(data),
+      close: () => {
+        closed += 1;
+      },
+      terminate: () => {},
+    };
+    bridge.connections.add(idle);
+
+    await bridge.backendListener({
+      type: 'notification',
+      method: 'turn/started',
+      params: { big: 'x'.repeat(5 * 1024 * 1024) },
+    });
+
+    assert.equal(closed, 0);
+    assert.equal(bridge.connections.has(idle), true);
+    assert.equal(idle.sent.length, 1);
+    assert.ok(Buffer.byteLength(idle.sent[0]) > 4 * 1024 * 1024);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('dropping the last client stops the monitor without waiting for the close handshake', async () => {
   const { bridge, cleanup } = await createHarness();
   try {

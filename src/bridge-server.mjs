@@ -1244,9 +1244,10 @@ export class BridgeServer extends EventEmitter {
     if (!ws || ws.readyState !== WebSocket.OPEN) return false;
     const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
     const bytes = Buffer.byteLength(data);
-    // Count the frame that is about to be queued, so two large frames in a row
-    // cannot both slip under the limit.
-    if (ws.bufferedAmount + bytes > MAX_BUFFERED_BYTES) {
+    // Only refuse to queue when the client is already behind. A single frame
+    // larger than the limit must still go out on an idle socket, otherwise a
+    // heavy session.content could never be delivered at all.
+    if (ws.bufferedAmount > 0 && ws.bufferedAmount + bytes > MAX_BUFFERED_BYTES) {
       this.#dropConnection(ws, 1009, 'client too slow', {
         buffered: ws.bufferedAmount,
         frame_bytes: bytes,

@@ -92,6 +92,18 @@ internal fun MainActivity.connectToBridge(
         isAutoReconnect: Boolean = false,
         connectionId: String? = null,
     ) {
+        // A URL restored from prefs or history can be malformed; never let that
+        // reach URI.create and crash the activity.
+        val bridgeUri = try {
+            URI.create(url)
+        } catch (error: IllegalArgumentException) {
+            bridgeClient = null
+            currentBridgeUrl = null
+            connected = false
+            connectionDetail = "Некорректный адрес моста: ${error.message.orEmpty()}"
+            showNotice(connectionDetail)
+            return
+        }
         val targetEntry = resolveConnectionHistory(url = url, connectionId = connectionId)
         val targetConnectionId = targetEntry?.id ?: connectionId?.trim()?.takeIf { it.isNotBlank() }
         if (bridgeClient?.isOpen() == true && currentBridgeUrl == url) {
@@ -142,7 +154,7 @@ internal fun MainActivity.connectToBridge(
         bridgeConnectionGeneration += 1
         val connectionGeneration = bridgeConnectionGeneration
         bridgeClient = BridgeClient(
-            URI.create(url),
+            bridgeUri,
             object : BridgeClient.Listener {
                 override fun onOpen() {
                     mainHandler.post {
@@ -637,10 +649,11 @@ internal fun MainActivity.sendRequest(type: String, payload: JSONObject, handler
 
 internal fun MainActivity.loadBridgeUrl(): String {
         prefs.getString(KEY_URL, "")?.trim()?.takeIf { it.isNotBlank() }?.let {
+            // An unparsable persisted URL must not be handed to the connector.
             return try {
                 normalizeBridgeUrl(it, requireToken = false)
             } catch (_: Exception) {
-                it
+                ""
             }
         }
 

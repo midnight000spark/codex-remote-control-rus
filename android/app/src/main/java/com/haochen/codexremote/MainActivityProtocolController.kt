@@ -3,14 +3,16 @@ package com.haochen.codexremote
 import org.json.JSONException
 import org.json.JSONObject
 
-internal fun MainActivity.handleIncoming(text: String) {
-        val message = try {
+// Called on the protocol parse executor, so it must not touch Activity state.
+internal fun parseBridgeMessage(text: String): JSONObject? {
+        return try {
             JSONObject(text)
         } catch (error: JSONException) {
-            appendSystemNote("Получено сообщение, не являющееся JSON: $text")
-            return
+            null
         }
+}
 
+internal fun MainActivity.handleIncomingMessage(message: JSONObject) {
         when (message.optString("type", "")) {
             "hello" -> {
                 val payload = message.optJSONObject("payload") ?: JSONObject()

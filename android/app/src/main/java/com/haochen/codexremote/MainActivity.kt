@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.util.LinkedHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import org.json.JSONObject
 
 internal const val PREFS = "codex_remote_settings"
@@ -54,6 +56,8 @@ internal const val DEFAULT_BRIDGE_CONNECT_TIMEOUT_SECONDS = 3
 internal const val DEFAULT_BRIDGE_PING_INTERVAL_SECONDS = 20
 internal const val DEFAULT_SESSION_HISTORY_MONTHS = 0
 internal const val DEFAULT_SESSION_SYNC_INTERVAL_SECONDS = 5
+internal const val INVALID_FRAME_PREVIEW_CHARS = 200
+internal const val LIVE_TURN_STATUS_COALESCE_MS = 200L
 
 class MainActivity : ComponentActivity() {
     internal val uiBackground = Color(0xFFF6FBF7)
@@ -70,6 +74,14 @@ class MainActivity : ComponentActivity() {
     internal val uiScrim = Color(0x551A8F55)
 
     internal val mainHandler = Handler(Looper.getMainLooper())
+    // Bridge frames are parsed off the main thread: a large session.sync payload
+    // used to block rendering for the whole JSON parse.
+    internal val protocolParseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "bridge-protocol-parse").apply { isDaemon = true }
+    }
+    internal var bridgeConnectionGeneration = 0
+    internal var liveTurnStatusPending: String? = null
+    internal var liveTurnStatusFlushRunnable: Runnable? = null
     internal val pendingRequests = mutableMapOf<String, ResponseHandler>()
     internal val renderedEventKeys = mutableSetOf<String>()
     internal val sessions = mutableStateListOf<SessionInfo>()
@@ -267,6 +279,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         stopSessionSyncLoop()
         cancelReconnectSchedule(resetAttempt = false)
+        protocolParseExecutor.shutdownNow()
         noticeToast?.cancel()
         noticeToast = null
         bridgeClient?.let {

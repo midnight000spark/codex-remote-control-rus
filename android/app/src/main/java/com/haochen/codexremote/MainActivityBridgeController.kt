@@ -137,6 +137,10 @@ internal fun MainActivity.connectToBridge(
                 "Подключение: $url"
             }
 
+        // Bumped on every connect and disconnect so frames parsed for a dead
+        // connection are dropped instead of mutating live state.
+        bridgeConnectionGeneration += 1
+        val connectionGeneration = bridgeConnectionGeneration
         bridgeClient = BridgeClient(
             URI.create(url),
             object : BridgeClient.Listener {
@@ -153,11 +157,29 @@ internal fun MainActivity.connectToBridge(
                 }
 
                 override fun onText(text: String) {
-                    mainHandler.post { handleIncoming(text) }
+                    try {
+                        protocolParseExecutor.execute {
+                            val message = parseBridgeMessage(text)
+                            mainHandler.post {
+                                if (connectionGeneration != bridgeConnectionGeneration) return@post
+                                if (message == null) {
+                                    appendSystemNote(
+                                        "Получено сообщение, не являющееся JSON: " +
+                                            text.take(INVALID_FRAME_PREVIEW_CHARS),
+                                    )
+                                } else {
+                                    handleIncomingMessage(message)
+                                }
+                            }
+                        }
+                    } catch (error: java.util.concurrent.RejectedExecutionException) {
+                        // The activity is shutting down; drop the frame.
+                    }
                 }
 
                 override fun onDisconnected(code: Int, reason: String, error: Throwable?) {
                     mainHandler.post {
+                        bridgeConnectionGeneration += 1
                         connected = false
                         mainHandler.removeCallbacks(bridgeHelloTimeoutRunnable)
                         activeTurnId = null

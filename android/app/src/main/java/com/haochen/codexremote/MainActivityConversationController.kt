@@ -460,7 +460,27 @@ internal fun MainActivity.updateLiveTurnStatusFromThreadStatus(status: JSONObjec
     }
 
 internal fun MainActivity.updateLiveTurnStatus(status: String?) {
-        liveTurnStatus = status?.trim()?.takeIf { it.isNotBlank() }
+        val next = status?.trim()?.takeIf { it.isNotBlank() }
+        liveTurnStatusPending = next
+        if (next == null) {
+            liveTurnStatusFlushRunnable?.let(mainHandler::removeCallbacks)
+            liveTurnStatusFlushRunnable = null
+            liveTurnStatusPending = null
+            if (liveTurnStatus != null) liveTurnStatus = null
+            return
+        }
+        if (liveTurnStatusFlushRunnable != null) return
+        if (next == liveTurnStatus) return
+        // Assistant deltas rebuild this label many times per second; coalescing
+        // the state write keeps recomposition off the streaming hot path.
+        val flush = Runnable {
+            liveTurnStatusFlushRunnable = null
+            val pending = liveTurnStatusPending
+            liveTurnStatusPending = null
+            if (liveTurnStatus != pending) liveTurnStatus = pending
+        }
+        liveTurnStatusFlushRunnable = flush
+        mainHandler.postDelayed(flush, LIVE_TURN_STATUS_COALESCE_MS)
     }
 
 internal fun MainActivity.labelRawResponseRole(role: String): String {

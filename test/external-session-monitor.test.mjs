@@ -6,6 +6,7 @@ import path from 'node:path';
 import { EventEmitter, once } from 'node:events';
 import WebSocket from 'ws';
 import { BridgeServer } from '../src/bridge-server.mjs';
+import { externalMonitorBackoffMs } from '../src/bridge/external-session-monitor.mjs';
 import {
   createRolloutEventCursor,
   readRolloutEventsFromCursor,
@@ -317,6 +318,18 @@ test('rollout monitor does not rebroadcast events already received in realtime',
     await bridge.stop();
     await fs.rm(dir, { recursive: true, force: true });
   }
+});
+
+test('monitor poll delay doubles per consecutive failure and resets on success', () => {
+  assert.equal(externalMonitorBackoffMs(5000, 0, 60_000), 5000);
+  assert.equal(externalMonitorBackoffMs(5000, 1, 60_000), 10_000);
+  assert.equal(externalMonitorBackoffMs(5000, 2, 60_000), 20_000);
+  assert.equal(externalMonitorBackoffMs(5000, 3, 60_000), 40_000);
+  assert.equal(externalMonitorBackoffMs(5000, 4, 60_000), 60_000);
+  assert.equal(externalMonitorBackoffMs(5000, 9, 60_000), 60_000, 'capped');
+  assert.equal(externalMonitorBackoffMs(5000, -1, 60_000), 5000, 'reset');
+  // A cap below the interval must not shorten the normal poll interval.
+  assert.equal(externalMonitorBackoffMs(5000, 3, 1000), 5000);
 });
 
 async function waitFor(predicate, timeoutMs = 5000) {

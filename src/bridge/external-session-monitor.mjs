@@ -77,12 +77,23 @@ function mergeMonitorSummary(summary, stored) {
   return merged;
 }
 
+// A bridge without a reachable Codex backend used to retry every 5s forever,
+// which keeps the CPU and the log busy. Each consecutive failure doubles the
+// delay up to a cap; a success puts it back to the poll interval.
+export function externalMonitorBackoffMs(intervalMs, failures, maxBackoffMs) {
+  const base = Math.max(20, Number(intervalMs) || 5000);
+  if (!(failures > 0)) return base;
+  const cap = Math.max(base, Number(maxBackoffMs) || 60_000);
+  return Math.min(base * 2 ** Math.min(failures, 4), cap);
+}
+
 export class ExternalSessionMonitor {
   constructor({
     backend,
     store,
     sessionContent,
     intervalMs = 5000,
+    maxBackoffMs = 60_000,
     limit = 50,
     onEvents = () => {},
     logSync = () => {},
@@ -91,6 +102,8 @@ export class ExternalSessionMonitor {
     this.store = store;
     this.sessionContent = sessionContent;
     this.intervalMs = Math.max(20, Number(intervalMs) || 5000);
+    this.maxBackoffMs = Math.max(this.intervalMs, Number(maxBackoffMs) || 60_000);
+    this.failureCount = 0;
     this.limit = Math.max(1, Number(limit) || 50);
     this.onEvents = onEvents;
     this.logSync = logSync;
@@ -128,14 +141,23 @@ export class ExternalSessionMonitor {
     this.timer = setTimeout(() => {
       this.timer = null;
       this.#poll()
+        .then(() => {
+          this.failureCount = 0;
+        })
         .catch((error) => {
+          this.failureCount += 1;
           this.logSync('external_monitor.poll.error', {
             message: error?.message ?? String(error),
+            failures: this.failureCount,
           });
         })
-        .finally(() => this.#schedule(this.intervalMs));
+        .finally(() => this.#schedule(this.#nextDelayMs()));
     }, delayMs);
     this.timer.unref?.();
+  }
+
+  #nextDelayMs() {
+    return externalMonitorBackoffMs(this.intervalMs, this.failureCount, this.maxBackoffMs);
   }
 
   async #poll() {

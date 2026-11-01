@@ -111,8 +111,8 @@ test('WS file.read rejects absolute paths outside the session cwd', async () => 
       type: 'file.read',
       payload: { session_id: 'abs_session', path: outside },
     }));
-    await waitFor(() => messages.find((message) => message.type === 'response' && message.id === '1'));
-    const response = messages.find((message) => message.type === 'response' && message.id === '1');
+    await waitFor(() => messages.find((message) => (message.type === 'response' || message.type === 'error') && message.id === '1'));
+    const response = messages.find((message) => (message.type === 'response' || message.type === 'error') && message.id === '1');
     assert.equal(response.ok, false, 'out-of-cwd absolute read must be rejected');
     ws.close();
     await once(ws, 'close');

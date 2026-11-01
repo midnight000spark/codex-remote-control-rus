@@ -144,7 +144,7 @@ export async function readSessionImage(store, sessionId, requestedPath) {
     error.code = 'SESSION_NOT_FOUND';
     throw error;
   }
-  const resolvedPath = resolveSessionFilePath(store, sessionId, requestedPath);
+  const resolvedPath = await resolveSessionFilePath(store, sessionId, requestedPath);
   const mimeType = IMAGE_MIME_TYPES.get(path.extname(resolvedPath).toLowerCase());
   if (!mimeType) {
     const error = new Error(`unsupported image type: ${requestedPath}`);
@@ -212,7 +212,25 @@ export async function writeSessionImageUpload(store, sessionId, contentType, con
   };
 }
 
-function resolveSessionFilePath(store, sessionId, requestedPath) {
+async function realpathOrResolve(value) {
+  try {
+    return await fs.realpath(value);
+  } catch {
+    return path.resolve(value);
+  }
+}
+
+// Reads are confined to the session workspace plus the bridge-managed upload
+// directory (where writeSessionImageUpload stores client uploads).
+function allowedReadRoots(store, cwd) {
+  return [cwd, path.join(path.dirname(store.filePath), 'uploads')].filter(Boolean);
+}
+
+function isInsideRoot(rootReal, targetReal) {
+  return targetReal === rootReal || targetReal.startsWith(rootReal + path.sep);
+}
+
+async function resolveSessionFilePath(store, sessionId, requestedPath) {
   const session = sessionId ? store.getSession(sessionId) : null;
   if (!session) {
     const error = new Error(`unknown session: ${sessionId}`);
@@ -228,11 +246,23 @@ function resolveSessionFilePath(store, sessionId, requestedPath) {
   if (!resolvedPath) {
     throw new Error(`cannot resolve relative path without session cwd: ${requestedPath}`);
   }
+  if (cwd) {
+    // realpath resolves symlinks, so a link inside the workspace that points
+    // outside it is rejected as well. Uploads live outside the workspace but
+    // are written by the bridge itself, so they stay readable.
+    const targetReal = await realpathOrResolve(resolvedPath);
+    const roots = await Promise.all(allowedReadRoots(store, cwd).map(realpathOrResolve));
+    if (!roots.some((rootReal) => isInsideRoot(rootReal, targetReal))) {
+      const error = new Error('path is outside the session workspace');
+      error.code = 'PATH_OUTSIDE_SESSION';
+      throw error;
+    }
+  }
   return resolvedPath;
 }
 
 async function inspectSessionFile(store, sessionId, requestedPath, sampleBytes) {
-  const resolvedPath = resolveSessionFilePath(store, sessionId, requestedPath);
+  const resolvedPath = await resolveSessionFilePath(store, sessionId, requestedPath);
   const stat = await fs.stat(resolvedPath);
   if (!stat.isFile()) {
     const error = new Error(`not a file: ${requestedPath}`);

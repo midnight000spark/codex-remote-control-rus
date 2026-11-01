@@ -323,7 +323,9 @@ export class BridgeServer extends EventEmitter {
       });
       res.end(image.content);
     } catch (error) {
-      const status = error?.code === 'IMAGE_TOO_LARGE'
+      const status = error?.code === 'PATH_OUTSIDE_SESSION'
+        ? 403
+        : error?.code === 'IMAGE_TOO_LARGE'
         ? 413
         : error?.code === 'UNSUPPORTED_IMAGE'
           ? 415
@@ -379,7 +381,7 @@ export class BridgeServer extends EventEmitter {
         res.destroy();
         return;
       }
-      const status = error?.code === 'EACCES'
+      const status = error?.code === 'EACCES' || error?.code === 'PATH_OUTSIDE_SESSION'
         ? 403
         : error?.code === 'SESSION_NOT_FOUND' || error?.code === 'NOT_FILE' || error?.code === 'ENOENT'
           ? 404

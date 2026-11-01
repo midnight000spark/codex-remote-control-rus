@@ -370,6 +370,7 @@ internal fun MainActivity.RemoteApp() {
         pendingApprovals.firstOrNull()?.let { approval ->
             ApprovalDialog(
                 approval = approval,
+                queueSize = pendingApprovals.size,
                 onDecision = { action ->
                     sendApproval(approval.requestId, action)
                 },

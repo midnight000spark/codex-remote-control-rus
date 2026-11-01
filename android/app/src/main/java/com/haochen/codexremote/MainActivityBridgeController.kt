@@ -780,7 +780,12 @@ internal fun MainActivity.scheduleReconnect(
             append((delayMs / 1000L).coerceAtLeast(1L))
             append(" сек до автопереподключения")
         }
-        showNotice(connectionDetail)
+        // One toast per outage: retrying silently keeps the status dot and the
+        // connection page text as the persistent indicator, instead of a toast
+        // every 1-30 seconds while the bridge is down.
+        if (reconnectAttempt <= 1) {
+            showNotice(connectionDetail)
+        }
         mainHandler.postDelayed(reconnectRunnable, delayMs)
     }
 

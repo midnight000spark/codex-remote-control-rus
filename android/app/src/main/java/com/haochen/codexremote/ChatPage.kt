@@ -386,10 +386,15 @@ private fun MainActivity.DownArrowGlyph(
 @Composable
 internal fun MainActivity.ApprovalDialog(
     approval: ApprovalDialogState,
+    queueSize: Int,
     onDecision: (ApprovalAction) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
+        // With a long file list the content used to push the action buttons off
+        // the screen, which made the approval impossible to answer. The body
+        // scrolls inside a bounded height; the actions stay pinned below it.
+        val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.68f).dp
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = uiSurface,
@@ -397,59 +402,71 @@ internal fun MainActivity.ApprovalDialog(
             shadowElevation = 10.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Text(
-                    text = approval.title,
-                    color = uiText,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                approval.detail.takeIf { it.isNotBlank() }?.let { detail ->
-                    Text(
-                        text = detail,
-                        color = uiMuted,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-                }
-                if (approval.diffEntries.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxBodyHeight)
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    if (queueSize > 1) {
                         Text(
-                            text = "Затронутые файлы: ${approval.diffEntries.size} шт.",
+                            text = "Подтверждение 1 из $queueSize",
                             color = uiMuted,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                         )
-                        Column {
-                            approval.diffEntries.forEachIndexed { index, entry ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = entry.displayPath(basePath = currentWorkspacePath(), maxLength = 72),
-                                        color = uiText,
-                                        fontSize = 13.sp,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        text = entry.changeLabel().orEmpty(),
-                                        color = uiMuted,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                                if (index < approval.diffEntries.lastIndex) {
-                                    HorizontalDivider(color = uiBorder.copy(alpha = 0.7f))
+                    }
+                    Text(
+                        text = approval.title,
+                        color = uiText,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    approval.detail.takeIf { it.isNotBlank() }?.let { detail ->
+                        Text(
+                            text = detail,
+                            color = uiMuted,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        )
+                    }
+                    if (approval.diffEntries.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Затронутые файлы: ${approval.diffEntries.size} шт.",
+                                color = uiMuted,
+                                fontSize = 13.sp,
+                            )
+                            Column {
+                                approval.diffEntries.forEachIndexed { index, entry ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = entry.displayPath(basePath = currentWorkspacePath(), maxLength = 72),
+                                            color = uiText,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = entry.changeLabel().orEmpty(),
+                                            color = uiMuted,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                    if (index < approval.diffEntries.lastIndex) {
+                                        HorizontalDivider(color = uiBorder.copy(alpha = 0.7f))
+                                    }
                                 }
                             }
                         }
@@ -457,7 +474,9 @@ internal fun MainActivity.ApprovalDialog(
                 }
                 HorizontalDivider(color = uiBorder.copy(alpha = 0.8f))
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     approval.actions.forEach { action ->

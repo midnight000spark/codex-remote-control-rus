@@ -260,8 +260,10 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = AndroidColor.TRANSPARENT
         window.navigationBarColor = AndroidColor.TRANSPARENT
         WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            // The app is light-only (uiBackground/uiSurface are near-white), so
+            // the system bar icons must be dark or they are invisible.
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
 
         setContent {

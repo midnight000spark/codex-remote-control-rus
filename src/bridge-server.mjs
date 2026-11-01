@@ -43,6 +43,11 @@ import {
   syncItemTypeCounts,
 } from './bridge/sync-log.mjs';
 
+// Never persist the bridge token in sync logs.
+function redactTokenFromUrl(rawUrl) {
+  return String(rawUrl ?? '').replace(/([?&]token=)[^&]*/gi, '$1***');
+}
+
 async function readRequestBody(req, maxBytes) {
   const declaredBytes = Number(req.headers['content-length']);
   if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
@@ -150,7 +155,13 @@ export class BridgeServer extends EventEmitter {
     this.httpServer = null;
     this.wsServer = null;
     this.connections = new Set();
-    this.backendListener = (message) => this.#handleBackendMessage(message);
+    this.backendListener = (message) => {
+      this.#handleBackendMessage(message).catch((error) => {
+        this.#logSync('backend.message.error', {
+          message: error?.message ?? String(error),
+        });
+      });
+    };
     this.sessionContent = new SessionContentController({
       backend: this.backend,
       store: this.store,
@@ -194,8 +205,16 @@ export class BridgeServer extends EventEmitter {
     this.backend.on('message', this.backendListener);
 
     this.httpServer = http.createServer((req, res) => this.#handleHttp(req, res));
-    this.wsServer = new WebSocketServer({ server: this.httpServer });
+    this.httpServer.on('error', (error) => {
+      this.#logSync('http.server.error', { message: error?.message ?? String(error) });
+    });
+    // Cap frame size: ws defaults to 100 MiB, which lets one client stall the
+    // event loop with a single synchronous JSON.parse.
+    this.wsServer = new WebSocketServer({ server: this.httpServer, maxPayload: 8 * 1024 * 1024 });
     this.wsServer.on('connection', (ws, req) => this.#handleConnection(ws, req));
+    this.wsServer.on('error', (error) => {
+      this.#logSync('ws.server.error', { message: error?.message ?? String(error) });
+    });
 
     await new Promise((resolve) => {
       this.httpServer.listen(this.port, this.host, resolve);
@@ -235,11 +254,6 @@ export class BridgeServer extends EventEmitter {
     if (url.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, name: this.name, version: this.version }));
-      return;
-    }
-    if (url.pathname === '/v1/sessions' && req.method === 'GET') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ sessions: this.store.listSessions() }));
       return;
     }
     if (url.pathname === '/v1/image') {
@@ -377,6 +391,17 @@ export class BridgeServer extends EventEmitter {
 
   async #handleConnection(ws, req) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    // A missing error listener turns any malformed frame into an uncaught
+    // exception that kills the whole bridge (pre-auth DoS).
+    ws.on('error', (error) => {
+      this.#logSync('ws.error', {
+        remote: req.socket?.remoteAddress ?? '',
+        message: error?.message ?? String(error),
+      });
+      try {
+        ws.terminate();
+      } catch {}
+    });
     const providedToken = url.searchParams.get('token') ?? req.headers['x-bridge-token'];
     if (this.token && providedToken !== this.token) {
       this.#logSync('ws.unauthorized', {
@@ -394,7 +419,7 @@ export class BridgeServer extends EventEmitter {
     }
     this.#logSync('ws.connected', {
       remote: req.socket?.remoteAddress ?? '',
-      url: req.url ?? '',
+      url: redactTokenFromUrl(req.url),
       connections: this.connections.size,
     });
     ws.send(JSON.stringify({
@@ -416,7 +441,7 @@ export class BridgeServer extends EventEmitter {
           remote: req.socket?.remoteAddress ?? '',
           bytes: Buffer.byteLength(raw),
         });
-        ws.send(JSON.stringify(createError(null, 'bad_json', 'invalid JSON', { raw })));
+        ws.send(JSON.stringify(createError(null, 'bad_json', 'invalid JSON')));
         return;
       }
       try {
@@ -838,7 +863,18 @@ export class BridgeServer extends EventEmitter {
         const clientRequestId = payload.request_id ?? payload.requestId;
         const sessionId = payload.session_id ?? payload.thread_id;
         const pendingApproval = this.store.getPendingApproval(sessionId, clientRequestId);
-        const backendRequestId = pendingApproval?.backend_request_id ?? clientRequestId;
+        if (!pendingApproval) {
+          ws.send(JSON.stringify(createError(id, 'unknown_approval', 'no pending approval for this request id')));
+          return;
+        }
+        const allowedDecisions = Array.isArray(pendingApproval.available_decisions)
+          ? pendingApproval.available_decisions.filter((value) => typeof value === 'string')
+          : [];
+        if (payload.decision != null && allowedDecisions.length > 0 && !allowedDecisions.includes(String(payload.decision))) {
+          ws.send(JSON.stringify(createError(id, 'invalid_decision', `decision not allowed: ${payload.decision}`)));
+          return;
+        }
+        const backendRequestId = pendingApproval.backend_request_id ?? clientRequestId;
         const result = payload.result ?? this.#compileApprovalResult(payload);
         const error = payload.error ?? null;
         this.#logApproval('response.received', {
@@ -922,7 +958,13 @@ export class BridgeServer extends EventEmitter {
           ws.send(JSON.stringify(createError(id, 'invalid_path', 'path is required')));
           return;
         }
-        const result = await readSessionFile(this.store, sessionId, requestedPath, maxBytes);
+        let result;
+        try {
+          result = await readSessionFile(this.store, sessionId, requestedPath, maxBytes);
+        } catch (error) {
+          ws.send(JSON.stringify(createError(id, error?.code ?? 'file_error', error?.message ?? 'failed to read file')));
+          return;
+        }
         ws.send(JSON.stringify(createResponse(id, {
           session_id: sessionId,
           path: requestedPath,

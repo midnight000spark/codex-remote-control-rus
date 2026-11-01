@@ -11,6 +11,7 @@
     "apk": "bash android/scripts/build-apk.sh",
     "apk:release:setup": "bash android/scripts/create-release-keystore.sh",
     "apk:release": "bash android/scripts/build-release-apk.sh",
+    "bench:content": "node scripts/bench-content.mjs",
     "test": "node --test"
   },
   "engines": {

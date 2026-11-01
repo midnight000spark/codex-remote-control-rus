@@ -27,6 +27,9 @@ export class StateStore {
   }
 
   async load() {
+    // Pending debounced mutations must reach disk before re-reading, otherwise
+    // an in-memory session created before start() is silently dropped.
+    await this.flush();
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     try {
       const raw = await fs.readFile(this.filePath, 'utf8');

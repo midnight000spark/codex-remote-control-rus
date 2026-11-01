@@ -312,7 +312,7 @@ export async function extractSessionMetadataFromRollout(session) {
   const cached = rolloutMetadataCache.get(rolloutPath);
   if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
     rememberCached(rolloutMetadataCache, rolloutPath, cached);
-    return cached.metadata;
+    return clone(cached.metadata);
   }
 
   try {
@@ -401,7 +401,8 @@ export async function buildEventsFromRolloutFile(
   } catch {
     return [];
   }
-  const key = filePath;
+  // Events embed session/thread ids, so the cache key must include both.
+  const key = `${sessionId}:${threadId ?? sessionId}:${filePath}`;
   const cached = rolloutEventCache.get(key);
   if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
     rememberCached(rolloutEventCache, key, cached);

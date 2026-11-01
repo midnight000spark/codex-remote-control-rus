@@ -502,23 +502,6 @@ export class SessionContentController {
       };
     }
 
-    if (sinceSeq <= 0) {
-      // Initial sync used to hydrate every turn with a separate JSON-RPC call and
-      // then return only the changed subset. Ask the client for full content
-      // instead: it is complete and avoids dozens of round trips on first load.
-      return {
-        session_id: sessionId,
-        thread_id: session.thread_id ?? sessionId,
-        last_seq: this.store.getLastSeq(sessionId),
-        entries: [],
-        active_turns: buildActiveTurns(this.store, sessionId, []),
-        pending_approvals: this.store.getPendingApprovals(sessionId),
-        changed_turn_ids: [],
-        needs_full_sync: true,
-        fallback_reason: 'initial_sync_requires_full_content',
-      };
-    }
-
     let { turnIds, hasRelevantEvents } = this.#changedTurnIdsForSessionSync(sessionId, sinceSeq);
     if (!hasRelevantEvents || turnIds.length === 0) {
       await this.refreshSessionHistory(sessionId, sinceSeq);

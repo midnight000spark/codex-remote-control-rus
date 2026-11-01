@@ -47,6 +47,66 @@ source ~/.zshrc && proxy_on
 npm run bridge
 ```
 
+## Keep It Running
+
+For a machine that should stay reachable, run the bridge as a systemd user
+service. Replace `100.x.y.z` with the host's Tailscale IPv4 address
+(`tailscale ip -4`).
+
+```ini
+# ~/.config/systemd/user/codex-remote-bridge.service
+[Unit]
+Description=Codex Remote Control bridge (Tailscale-only)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/codex-remote-control
+ExecStart=/usr/bin/node %h/projects/codex-remote-control/src/index.mjs \
+  --backend codex \
+  --listen 100.x.y.z:8787 \
+  --state %h/.config/codex_remote_control/bridge-state.json \
+  --token-file %h/.config/codex_remote_control/bridge-token.txt \
+  --bridge-id-file %h/.config/codex_remote_control/bridge-id.txt
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now codex-remote-bridge.service
+loginctl enable-linger "$USER"   # keep it alive without an open session
+```
+
+The bridge binds the Tailscale address on purpose. Starting it on a public
+interface requires `CODEX_REMOTE_ALLOW_PUBLIC=1`; doing so is not recommended.
+The service must be restarted after bridge code changes, because it keeps the
+old process running:
+
+```bash
+systemctl --user restart codex-remote-bridge.service
+```
+
+### Verify the setup
+
+```bash
+npm run doctor
+```
+
+The doctor checks Node, token permissions, state file, the user service,
+linger, Tailscale state, the listening port, `/healthz`, and the debug APK. It
+is read-only and never prints the token. To follow the service log:
+
+```bash
+journalctl --user -u codex-remote-bridge.service -f
+```
+
 ## Bridge Environment Variables
 
 `scripts/run-bridge.sh` accepts these environment variables:

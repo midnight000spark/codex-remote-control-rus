@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/index.mjs",
     "bridge": "bash scripts/run-bridge.sh",
+    "doctor": "bash scripts/doctor.sh",
     "apk": "bash android/scripts/build-apk.sh",
     "apk:release:setup": "bash android/scripts/create-release-keystore.sh",
     "apk:release": "bash android/scripts/build-release-apk.sh",
